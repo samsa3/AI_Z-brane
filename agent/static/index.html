@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triage Assistant</title>
+<style>
+:root{
+  --bg:#f5f7fa; --card:#ffffff; --soft:#f0f4f8; --ink:#1b2733; --ink2:#4a5a6a; --muted:#7b8a99; --line:#dfe6ed;
+  --blue:#1d6fb8; --blue-soft:#e8f1fa; --green:#1f8a4c; --green-soft:#e7f5ed; --red:#c0392b; --red-soft:#fbeceb; --amber:#b7791f; --amber-soft:#fdf4e3;
+  --u1:#d32f2f; --u2:#ef6c00; --u3:#f2b705; --u4:#2e9e4f; --u5:#1d6fb8;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f141a; --card:#161d25; --soft:#1c242e; --ink:#e9eef3; --ink2:#b9c4cf; --muted:#8693a0; --line:#27313c;
+    --blue:#5aa2e6; --blue-soft:#14273a; --green:#4cc27e; --green-soft:#123222; --red:#ef6f62; --red-soft:#3a1916; --amber:#e3a94a; --amber-soft:#3a2a10;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+button,select,textarea,input{font:inherit;color:inherit}
+button{cursor:pointer}
+.hidden{display:none !important}
+
+header{background:var(--card);border-bottom:1px solid var(--line)}
+.top{max-width:760px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:12px}
+.logo{width:32px;height:32px;border-radius:8px;background:var(--blue);display:grid;place-items:center;flex:none}
+.logo svg{width:18px;height:18px}
+.top h1{font-size:17px;margin:0;font-weight:650}
+.top .grow{flex:1}
+.status{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted)}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.status.ok i{background:var(--green)} .status.bad i{background:var(--red)}
+.link{background:none;border:0;color:var(--blue);font-size:13px;padding:4px}
+
+main{max-width:760px;margin:0 auto;padding:22px 20px 60px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+h2{font-size:15px;margin:0 0 14px;font-weight:650;display:flex;align-items:center;gap:10px}
+h2 .n{width:24px;height:24px;border-radius:50%;background:var(--blue-soft);color:var(--blue);display:grid;place-items:center;font-size:13px;font-weight:700;flex:none}
+
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.row label{flex:1;min-width:200px;font-size:13px;color:var(--ink2)}
+select{display:block;width:100%;margin-top:4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+textarea{width:100%;min-height:150px;resize:vertical;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--card);line-height:1.6}
+select:focus,textarea:focus,input:focus,button:focus-visible{outline:3px solid color-mix(in srgb,var(--blue) 35%,transparent);outline-offset:1px}
+.big{width:100%;margin-top:14px;border:0;border-radius:12px;padding:14px;background:var(--blue);color:#fff;font-size:16px;font-weight:650}
+.big:disabled{opacity:.6;cursor:default}
+details.adv{margin-top:12px;font-size:13px;color:var(--ink2)}
+details.adv summary{cursor:pointer;color:var(--muted)}
+details.adv label{display:flex;gap:8px;align-items:center;margin-top:8px}
+
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.step{text-align:center;font-size:13px;color:var(--muted)}
+.step .dot{width:34px;height:34px;margin:0 auto 6px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-weight:700;background:var(--card);color:var(--muted)}
+.step.run .dot{border-color:var(--blue);color:var(--blue);animation:p 1s ease-in-out infinite}
+.step.done .dot{border-color:var(--green);background:var(--green);color:#fff}
+.step.warn .dot{border-color:var(--amber);background:var(--amber);color:#fff}
+.step.err .dot{border-color:var(--red);background:var(--red);color:#fff}
+.step.done,.step.warn,.step.err,.step.run{color:var(--ink)}
+@keyframes p{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.step.run .dot{animation:none}}
+
+.banner{display:flex;gap:14px;align-items:flex-start;border-radius:12px;padding:14px 16px}
+.banner svg{width:24px;height:24px;flex:none;margin-top:2px}
+.banner b{display:block}
+.banner span{font-size:14px;color:var(--ink2)}
+.banner.green{background:var(--green-soft)} .banner.green svg{color:var(--green)}
+.banner.blue{background:var(--blue-soft)} .banner.blue svg{color:var(--blue)}
+.banner.red{background:var(--red-soft)} .banner.red svg{color:var(--red)}
+.shield{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.shield span{font-size:13px;padding:5px 11px;border-radius:999px;background:var(--soft);color:var(--ink2)}
+
+.note{background:var(--soft);border-radius:12px;padding:16px 18px;font-size:15px}
+.note h4{margin:.9em 0 .25em;font-size:15px} .note h4:first-child{margin-top:0}
+.note p{margin:.3em 0}
+.note[contenteditable=true]{background:var(--card);outline:2px solid var(--blue)}
+.ai{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--ink2);margin-bottom:12px}
+.badge{display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 8px;border-radius:7px;color:#fff;font-weight:700;font-size:14px}
+.b1{background:var(--u1)} .b2{background:var(--u2)} .b3{background:var(--u3);color:#2b2100} .b4{background:var(--u4)} .b5{background:var(--u5)} .b0{background:var(--muted)}
+
+.cats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+@media (max-width:560px){.cats{grid-template-columns:repeat(3,1fr)}}
+.cat{border:2px solid var(--line);background:var(--card);border-radius:12px;padding:10px 4px;font-size:13px;color:var(--ink2);line-height:1.3}
+.cat b{display:block;font-size:20px;color:var(--ink)}
+.cat:hover{border-color:var(--muted)}
+.cat[aria-pressed="true"]{color:#fff;border-color:transparent}
+.cat[aria-pressed="true"] b{color:#fff}
+.c1[aria-pressed="true"]{background:var(--u1)} .c2[aria-pressed="true"]{background:var(--u2)} .c3[aria-pressed="true"]{background:var(--u3);color:#2b2100}
+.c3[aria-pressed="true"] b{color:#2b2100} .c4[aria-pressed="true"]{background:var(--u4)} .c5[aria-pressed="true"]{background:var(--u5)}
+.msg{font-size:14px;margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--amber-soft)}
+.reason{width:100%;margin-top:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:11px 16px;font-weight:600;font-size:15px}
+.btn.main{flex:1;min-width:180px;background:var(--green);border-color:var(--green);color:#fff}
+.btn.main:disabled{opacity:.45;cursor:default}
+.btn.quiet{color:var(--red)}
+.saved{display:flex;gap:12px;align-items:center;padding:14px 16px;border-radius:12px;background:var(--green-soft);font-weight:600}
+.saved.rej{background:var(--red-soft)}
+.small{font-size:13px;color:var(--muted);margin:10px 0 0}
+
+details.more{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 20px}
+details.more summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--ink2)}
+.sub{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px;font-weight:600}
+.box{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);border-radius:10px;padding:12px;font-size:14px;line-height:1.85}
+.m{border-radius:5px;padding:1px 6px;font-size:11.5px;font-weight:700;background:var(--ink);color:var(--card);white-space:nowrap}
+.m.reveal{background:none;color:inherit;font-size:inherit;font-weight:inherit;border-bottom:2px solid var(--amber);border-radius:0;padding:0}
+.tok{font-family:ui-monospace,Consolas,monospace;font-size:12.5px;background:var(--amber-soft);border-radius:4px;padding:0 4px}
+.rules{margin:0;padding-left:18px;font-size:14px;color:var(--ink2)}
+.rules li{margin:4px 0}
+.log{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)}
+code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+    <h1>Triage Assistant</h1>
+    <div class="grow"></div>
+    <span id="brane" class="status"><i></i><span>Checking protection…</span></span>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2><span class="n">1</span>Patient information</h2>
+    <div class="row">
+      <label>Type of case
+        <select id="scen">
+          <option value="er">Emergency intake</option>
+          <option value="portal">Patient message</option>
+          <option value="protocol">Question about a protocol</option>
+        </select>
+      </label>
+      <label>Try an example (fictional data)
+        <select id="samples"><option value="">Choose an example…</option></select>
+      </label>
+    </div>
+    <textarea id="text" aria-label="Patient note" placeholder="Paste or type the note here. Use fictional data only."></textarea>
+    <button class="big" id="go">Check and prepare</button>
+    <details class="adv">
+      <summary>Options</summary>
+      <label><input type="checkbox" id="down"> Demo: safety check unavailable</label>
+      <label>Setting
+        <select id="size" style="display:inline-block;width:auto;margin:0 0 0 6px;padding:4px 8px">
+          <option value="clinic">Clinic</option><option value="regional" selected>Regional hospital</option><option value="university">University hospital</option>
+        </select>
+      </label>
+    </details>
+  </section>
+
+  <section class="card hidden" id="progress">
+    <div class="steps">
+      <div class="step" data-s="a"><div class="dot">1</div>Protect data</div>
+      <div class="step" data-s="b"><div class="dot">2</div>Safety check</div>
+      <div class="step" data-s="c"><div class="dot">3</div>Prepare note</div>
+      <div class="step" data-s="d"><div class="dot">4</div>Your decision</div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="result" aria-live="polite">
+    <div class="banner" id="banner"></div>
+    <div class="shield" id="shield"></div>
+  </section>
+
+  <section class="card hidden" id="noteCard">
+    <h2><span class="n">2</span>Suggested triage note</h2>
+    <div class="ai" id="ai"></div>
+    <div class="note" id="draft"></div>
+    <p class="small">Prepared by AI as support. Please check it against the patient.</p>
+  </section>
+
+  <section class="card hidden" id="decideCard">
+    <h2><span class="n">3</span>Your decision</h2>
+    <div class="cats" id="cats">
+      <button class="cat c1" data-c="1" aria-pressed="false"><b>1</b>Immediate</button>
+      <button class="cat c2" data-c="2" aria-pressed="false"><b>2</b>Very urgent</button>
+      <button class="cat c3" data-c="3" aria-pressed="false"><b>3</b>Urgent</button>
+      <button class="cat c4" data-c="4" aria-pressed="false"><b>4</b>Standard</button>
+      <button class="cat c5" data-c="5" aria-pressed="false"><b>5</b>Non-urgent</button>
+    </div>
+    <div class="msg hidden" id="diff"></div>
+    <input class="reason hidden" id="comment" placeholder="Reason for your choice">
+    <div class="acts">
+      <button class="btn main" id="confirm" disabled>Confirm decision</button>
+      <button class="btn" id="editBtn">Edit note</button>
+      <button class="btn quiet" id="reject">Reject AI note</button>
+    </div>
+    <p class="small">You make the final decision. The AI only suggests.</p>
+  </section>
+
+  <section class="hidden" id="doneCard"><div class="saved" id="decided"></div></section>
+
+  <details class="more hidden" id="more">
+    <summary>Details: what was protected and why</summary>
+    <div class="sub">Original note (never sent to an AI model)
+      <label style="text-transform:none;letter-spacing:0;font-weight:400;float:right"><input type="checkbox" id="reveal"> show values</label></div>
+    <div class="box" id="doc"></div>
+    <div class="sub">Text sent to the safety check (BRANE)</div>
+    <div class="box" id="outbound"></div>
+    <p class="small">Demo set-up: the BRANE safety check is hosted by AI-Z and inspects the original note. In a hospital, BRANE runs on the hospital's own servers.</p>
+    <div class="sub">Rules applied</div>
+    <ul class="rules" id="law"></ul>
+    <p class="small" id="notes"></p>
+    <div class="sub">Steps</div>
+    <ol class="log" id="steps"></ol>
+    <div class="sub">Technical evidence</div>
+    <div id="hdr" class="small"></div>
+  </details>
+</main>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let samples = [], last = null, outbound = null, aiLevel = null, chosen = null;
+const NAMES = {1:"Immediate", 2:"Very urgent", 3:"Urgent", 4:"Standard", 5:"Non-urgent"};
+const ICON = {
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  stop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>'
+};
+
+/* protection status */
+fetch("/api/policy").then(r => r.json()).then(p => {
+  const el = $("#brane");
+  if (p.ok && !(p.summary || {}).isOpenBaseline){ el.className = "status ok"; el.lastElementChild.textContent = "Data protection active"; }
+  else if (p.ok){ el.className = "status"; el.lastElementChild.textContent = "Protection: local rules only"; }
+  else { el.className = "status bad"; el.lastElementChild.textContent = "Protection offline"; }
+}).catch(() => { $("#brane").className = "status bad"; $("#brane").lastElementChild.textContent = "Protection offline"; });
+
+/* examples */
+fetch("/api/samples").then(r => r.json()).then(s => { samples = s; fillSamples(); });
+function fillSamples(){
+  const sc = $("#scen").value, sel = $("#samples");
+  sel.innerHTML = '<option value="">Choose an example…</option>' +
+    samples.filter(x => x.scenario === sc).map((x, i) => `<option value="${esc(x.id)}">${esc(x.label.replace(/^[A-Z]\d+c?b? · /, ""))}</option>`).join("");
+}
+$("#scen").onchange = () => { fillSamples(); $("#text").value = ""; };
+$("#samples").onchange = e => { const s = samples.find(x => x.id === e.target.value); if (s) $("#text").value = s.text; };
+
+/* progress */
+function stepState(key, st){ const el = document.querySelector(`.step[data-s="${key}"]`); el.className = "step" + (st ? " " + st : ""); }
+const MAP = {1:"a", 2:"a", 3:"b", 4:"b", 5:"c", 6:"c"};
+const CLS = {done:"done", warn:"done", error:"err", running:"run"};
+function onStep(ev){
+  const li = document.createElement("li"); li.textContent = `${ev.title}: ${ev.detail}`;
+  if (ev.status !== "running") $("#steps").appendChild(li);
+  if (MAP[ev.n]) stepState(MAP[ev.n], CLS[ev.status]);
+}
+
+$("#go").onclick = async () => {
+  const text = $("#text").value;
+  if (!text.trim()){ $("#text").focus(); return; }
+  $("#go").disabled = true; $("#go").textContent = "Working…";
+  ["#result","#noteCard","#decideCard","#doneCard","#more"].forEach(s => $(s).classList.add("hidden"));
+  $("#progress").classList.remove("hidden"); ["a","b","c","d"].forEach(k => stepState(k, null)); stepState("a", "run");
+  $("#steps").innerHTML = ""; outbound = null;
+  try {
+    const res = await fetch("/api/analyse", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({text, scenario: $("#scen").value, size: $("#size").value, simulateDown: $("#down").checked})});
+    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
+    while (true){
+      const {value, done} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream:true});
+      let i; while ((i = buf.indexOf("\n")) >= 0){
+        const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === "step"){ onStep(ev); if (ev.data && ev.data.outbound_preview) outbound = ev.data.outbound_preview; }
+        else show(ev);
+      }
+    }
+  } catch (e) {
+    ["a","b","c"].forEach(k => { const el = document.querySelector(`.step[data-s="${k}"]`); if (el.classList.contains("run")) stepState(k, "err"); });
+    $("#banner").className = "banner red";
+    $("#banner").innerHTML = `${ICON.stop}<div><b>Connection to the assistant was lost</b><span>No result is used. Please try again or handle the case manually.</span></div>`;
+    $("#shield").innerHTML = ""; $("#result").classList.remove("hidden");
+  }
+  $("#go").disabled = false; $("#go").textContent = "Check and prepare";
+};
+
+/* plain-language summary of what was protected */
+function protections(r){
+  const L = new Set((r.spans || []).filter(s => s.action !== "allow").map(s => s.label));
+  const out = [];
+  if (L.has("PERSON")) out.push("Names hidden");
+  if (["EMAIL","PHONE","ADDRESS","IP_ADDRESS"].some(x => L.has(x))) out.push("Contact details hidden");
+  if (L.has("DATE_OF_BIRTH")) out.push("Birth date changed to age");
+  if (["IBAN","CREDIT_CARD"].some(x => L.has(x))) out.push("Payment data removed");
+  if (L.has("RELIGIOUS_BELIEF") || L.has("ETHNIC_ORIGIN")) out.push("Religion / origin hidden, never used for priority");
+  if (L.has("TREATMENT_PREFERENCE")) out.push("Treatment preference kept for the clinician");
+  if (["PATIENT_ID","INSURANCE_NUMBER","ACCOUNT_NUMBER","SSN","PASSPORT","TAX_NUMBER","IBAN"].some(x => L.has(x))) out.push("Patient numbers hidden");
+  if (["HEALTH_DATA","INDIRECT_HEALTH","GENETIC_OR_SEXUAL_HEALTH","SEXUAL_ORIENTATION"].some(x => L.has(x))) out.push("Health information only on the internal AI");
+  if (L.has("CRIMINAL_CONTEXT")) out.push("Police / legal context kept inside");
+  if (L.has("INSTRUCTION")) out.push("Hidden instruction removed");
+  if (L.has("AUTONOMOUS_DECISION")) out.push("Automatic decision blocked");
+  if (L.has("CAPACITY_OR_CONSENT_DECISION")) out.push("Capacity / consent left to a clinician");
+  if (L.has("EMOTION_OR_BIOMETRIC_INFERENCE")) out.push("Emotion or honesty judgement blocked");
+  if (L.has("PROTECTED_TRAIT_PRIORITY")) out.push("Priority by origin, religion or language blocked");
+  return out;
+}
+
+function show(r){
+  last = r; chosen = null;
+  const m = r.draft && (r.draft.match(/suggested level:\s*\**\s*([1-5])\b/i) || r.draft.match(/urgency level[\s\S]{0,40}?\blevel\s*([1-5])\b/i));
+  aiLevel = m ? +m[1] : null;
+  const B = {
+    local:  ["green", ICON.ok, "Processed by the hospital's internal AI", "Patient data never reached an external AI model. Names and numbers were replaced first; only the BRANE safety check inspected the note."],
+    cloud:  ["blue", ICON.ok, "Checked and protected", "Only information without names or numbers was used to prepare the note."],
+    refused:["red", ICON.stop, "A clinician must handle this case", "This request asks the AI to do something only a clinician may do (decide, judge capacity or rank by a personal trait). No AI note was made."],
+    blocked:["red", ICON.stop, "Safety check unavailable", "Nothing was sent. Please handle this case manually."]
+  }[r.route] || ["red", ICON.stop, "Stopped", r.headline];
+  $("#banner").className = "banner " + B[0];
+  $("#banner").innerHTML = `${B[1]}<div><b>${B[2]}</b><span>${B[3]}</span></div>`;
+  $("#shield").innerHTML = protections(r).map(p => `<span>${esc(p)}</span>`).join("");
+  $("#result").classList.remove("hidden");
+
+  const hasDraft = !!r.draft;
+  $("#noteCard").classList.toggle("hidden", !hasDraft);
+  $("#decideCard").classList.toggle("hidden", !hasDraft);
+  if (hasDraft){
+    $("#draft").innerHTML = "<p>" + md(r.draft.replace(/^\s*suggested level:.*$/im, "")) + "</p>";
+    $("#draft").contentEditable = false; $("#editBtn").textContent = "Edit note";
+    $("#ai").innerHTML = aiLevel ? `AI suggests <span class="badge b${aiLevel}">${aiLevel}</span> ${NAMES[aiLevel]}` : "";
+    $$("#cats .cat").forEach(c => c.setAttribute("aria-pressed", "false"));
+    $("#confirm").disabled = true; $("#diff").classList.add("hidden"); $("#comment").classList.add("hidden"); $("#comment").value = "";
+    stepState("d", "run");
+  }
+
+  /* details */
+  renderDoc();
+  $("#outbound").innerHTML = outbound ? esc(outbound).replace(/\[[^\]]{2,40}\]/g, t => `<span class="tok">${t}</span>`) : "Nothing was sent.";
+  $("#law").innerHTML = (r.advice || []).filter(a => a.action !== "allow")
+    .map(a => `<li><b>${esc(a.label.replace(/_/g, " ").toLowerCase())}</b>: ${esc(a.action)}. ${esc(a.reason)} <i>(${esc(a.legal)})</i></li>`).join("") || "<li>No protected information found.</li>";
+  $("#notes").textContent = (r.notes || []).filter(Boolean).join(" ");
+  const h = r.headers || {};
+  $("#hdr").innerHTML = Object.keys(h).length ? Object.entries(h).map(([k, v]) => `<code>${esc(k)}: ${esc(v)}</code>`).join("<br>") : "No AI was called for this case.";
+  $("#more").classList.remove("hidden");
+}
+function md(s){
+  return esc(s.replace(/^\s*>\s?/gm, "").replace(/\n{3,}/g, "\n\n")).replace(/^#{1,4} (.*)$/gm, "<h4>$1</h4>")
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^\s*[-*] (.*)$/gm, "• $1").replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
+}
+function renderDoc(){
+  if (!last) return;
+  const t = last.text, reveal = $("#reveal").checked, R = {quarantine:4, refuse:3, local:2, placeholder:1, remove:1};
+  const sp = (last.spans || []).filter(s => s.action !== "allow").sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start) || R[b.action] - R[a.action]);
+  let out = "", pos = 0;
+  for (const s of sp){ if (s.start < pos) continue; out += esc(t.slice(pos, s.start));
+    out += reveal ? `<span class="m reveal">${esc(t.slice(s.start, s.end))}</span>` : `<span class="m">${esc(s.label.replace(/_/g, " ").toLowerCase())}</span>`; pos = s.end; }
+  $("#doc").innerHTML = out + esc(t.slice(pos));
+}
+$("#reveal").onchange = renderDoc;
+
+/* decision: the nurse chooses */
+$$("#cats .cat").forEach(b => b.onclick = () => {
+  chosen = +b.dataset.c;
+  $$("#cats .cat").forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false"));
+  const differs = aiLevel && chosen !== aiLevel;
+  $("#diff").classList.toggle("hidden", !differs); $("#comment").classList.toggle("hidden", !differs);
+  if (differs) $("#diff").textContent = `You chose ${chosen} (${NAMES[chosen]}). The AI suggested ${aiLevel}. Please add a short reason.`;
+  $("#confirm").disabled = false;
+});
+$("#draft").addEventListener("input", () => { $("#draft").dataset.edited = "1"; });
+$("#editBtn").onclick = () => { const d = $("#draft"), on = d.contentEditable !== "true"; d.contentEditable = on; $("#editBtn").textContent = on ? "Done editing" : "Edit note"; if (on) d.focus(); };
+async function decide(decision){
+  if (decision === "approved" && aiLevel && chosen !== aiLevel && !$("#comment").value.trim()){ $("#comment").focus(); return; }
+  const edited = $("#editBtn").textContent === "Done editing" || $("#draft").dataset.edited === "1";
+  await fetch("/api/decision", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({case_id: last.case_id, decision, edited, comment: $("#comment").value, final_category: chosen, ai_suggested: aiLevel})});
+  $("#draft").contentEditable = false;
+  $("#decideCard").classList.add("hidden");
+  const ok = decision === "approved";
+  $("#decided").className = "saved" + (ok ? "" : " rej");
+  $("#decided").innerHTML = ok
+    ? `<span class="badge b${chosen}">${chosen}</span> Decision saved: ${NAMES[chosen]}${aiLevel && chosen !== aiLevel ? " (you changed the AI suggestion)" : ""}`
+    : "AI note rejected. Please assess the patient without it.";
+  $("#doneCard").classList.remove("hidden");
+  stepState("d", ok ? "done" : "warn");
+}
+$("#confirm").onclick = () => decide("approved");
+$("#reject").onclick = () => decide("rejected");
+</script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# Secrets: never commit the BRANE key
+.env
+*.env
+!.env.example
+# Local audit logs (may only hold hashes, still kept local by policy R18)
+logs/
+__pycache__/
+*.pyc
+# local test output of the starter kit
+test_evidence_run.csv
