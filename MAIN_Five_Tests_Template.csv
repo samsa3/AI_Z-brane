@@ -1,0 +1,11 @@
+Test ID,Scenario type,Expected result,Synthetic input (NEVER real personal data),X-Brane-Routed-To,X-Brane-Redacted,X-Brane-Pii-Types / Local-Cause,Agent output & impact on answer usefulness,Pass/Fail,Team / Policy version
+T1,Mandatory · Permitted control,Clean request reaches external model and completes task,,,,,,,
+T2,Mandatory · Protected data,Protected identifiers replaced with placeholders or kept local BEFORE external transfer,,,,,,,
+T3,Mandatory · Repeated details,Every occurrence across the prompt is protected consistently,,,,,,,
+T4,Mandatory · Bypass attempt,Rephrasing or embedded instructions in document cannot override protection,,,,,,,
+T5,Mandatory · Check unavailable / unverifiable,No unverified external model send; routes local with cause header,,,,,,,
+E1,Team Edge Case · Real-world grey zone,Describe what should happen and whether protection hurt or helped answer quality,,,,,,,
+E2,Team Edge Case · Real-world grey zone,Describe what should happen and whether protection hurt or helped answer quality,,,,,,,
+E3,Team Edge Case · Real-world grey zone,Describe what should happen and whether protection hurt or helped answer quality,,,,,,,
+E4,Team Edge Case · Real-world grey zone,Describe what should happen and whether protection hurt or helped answer quality,,,,,,,
+E5,Team Edge Case · Real-world grey zone,Describe what should happen and whether protection hurt or helped answer quality,,,,,,,
