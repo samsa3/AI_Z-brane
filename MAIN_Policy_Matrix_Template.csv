@@ -1,0 +1,6 @@
+Rule ID,Use-case data category,Why needed (or not needed) for task,Legal or governance source (Article / Guideline),Target decision: ALLOW / PROTECT / LOCAL ONLY / BLOCK / HUMAN APPROVAL,How enforced in BRANE AIF + Agent code today,Product gap note (what finer rule you wished BRANE had per-category),Evidence captured (X-Brane-* headers / UI step),Linked Test IDs
+R0 (EXAMPLE - delete or adapt),Applicant health / accommodation note in CV screening,Context affects fair interview adjustment so stripping it breaks the summary,GDPR Art. 9(1) (special-category health data) + Art. 5(1)(c) data minimisation,LOCAL ONLY,Configured in our team's /team-policy plain-language dataPolicy so BRANE routes any health context to the internal GPU model,Wished BRANE had a dedicated per-category UI dropdown (e.g. HEALTH=LOCAL while NAME=PLACEHOLDER) instead of one global PII switch,X-Brane-Routed-To: local | X-Brane-Model-Resolved: vllm:...,T2 / E1
+R1,,,,,,,,T1 / T2
+R2,,,,,,,,T2 / T3
+R3,,,,,,,,T4 / T5
+R4 (Human-in-the-loop),Final decision affecting a person / contract / patient,AI prepares structured draft only; legal responsibility stays human,GDPR Art. 22 + EU AI Act Art. 14 (human oversight),HUMAN APPROVAL,Agent stops before final action and renders an explicit Approve / Edit / Reject review step for an authorised role,,Screenshot / live demo of human approval step,Demo
