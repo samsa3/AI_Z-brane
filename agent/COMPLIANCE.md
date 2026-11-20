@@ -47,8 +47,14 @@ Run `python verify_all.py` (with `python server.py` running) to re-check everyth
 - Risk: anyone clicking **Save Policy Live** in the workbench overwrites this. Check with
   `python policy_sync.py verify policy/triage_policy.json` before the demo and before handing in.
 
+### Added 21 Nov
+- Nurse-first blind assessment (initial / AI / final category logged, `changed_after_seeing_ai`), privacy receipt per case,
+  time-saved counter (baseline = team estimate), multilingual patient messages (NL/DE/FR/ES, note in English, always local).
+- Fixed: BRANE tagged the anticoagulant "Marcumar" as PERSON; known medication names are now never masked.
+
 ## 4. Known limits (documented as product gaps in the policy matrix)
 
+- BRANE tags drug names as PERSON ("Marcumar", confidence 1.0): medication names are kept by an allow-list.
 - BRANE alone missed name variants on cloud turns ("J. Beispiel", bare "Petra") → our local masking is mandatory on cloud turns.
 - BRANE scans our own system prompt as data → prompts were reworded (e.g. 'Mark uncertain' read as a person, 'religion' in an instruction read as RELIGIOUS_BELIEF).
 - Once identifiers are tokenised BRANE may route a patient case to the cloud; the agent re-checks the masked text and pins the internal model (`explicit_local_model`).

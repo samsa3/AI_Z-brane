@@ -27,7 +27,8 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from legal import ART9_LABELS, LEGAL_FLOOR, RANK, SCENARIOS, SIZE_NOTES, SYSTEM_PROMPT, age_from_dob, local_scan, name_variants
+from legal import (ART9_LABELS, LEGAL_FLOOR, RANK, SCENARIOS, SIZE_NOTES, SYSTEM_PROMPT, age_from_dob, detect_language,
+                   local_scan, name_variants)
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -42,7 +43,10 @@ IDENTIFIER_LABELS = {"PERSON", "EMAIL", "PHONE", "ADDRESS", "IP_ADDRESS", "DATE_
                      "TAX_NUMBER", "INSURANCE_NUMBER", "PATIENT_ID", "ACCOUNT_NUMBER",
                      "RELIGIOUS_BELIEF", "ETHNIC_ORIGIN", "POLITICAL_OPINION", "SEXUAL_ORIENTATION", "TRADE_UNION"}
 ART9_HIDDEN = {"RELIGIOUS_BELIEF", "ETHNIC_ORIGIN", "POLITICAL_OPINION", "SEXUAL_ORIENTATION", "TRADE_UNION"}
-LOG_RETENTION_DAYS = 30  # brain: logs local, minimised, with a documented retention period
+LOG_RETENTION_DAYS = 30
+# Manual baseline for the time-saved counter: minutes a nurse spends today reading a case and writing the triage note
+# without the tool. TEAM ESTIMATE until the business team supplies a sourced figure (env BASELINE_MINUTES).
+BASELINE_MINUTES = float(os.environ.get("BASELINE_MINUTES", "8"))  # brain: logs local, minimised, with a documented retention period
 PERSON_MIN_CONF = 0.9  # tuned on synthetic samples; see ignored-detections note in step 4
 CASES: dict[str, dict] = {}  # in-memory, local only: case_id -> mapping for rehydration
 
@@ -111,7 +115,17 @@ def find_all(text: str, needle: str) -> list[tuple[int, int]]:
 NAME_WORD = r"[A-Z][a-zà-ÿ'\-]+"
 NOT_NAMES = {"My", "Our", "The", "Dear", "Please", "Call", "Mr", "Ms", "Mrs", "Mx", "Dr", "Patient", "Doctor",
              "Nurse", "Hello", "Hi", "Thank", "Thanks", "Name", "His", "Her", "Regards", "Kind", "Contact", "Wife",
-             "Husband", "Son", "Daughter", "Mother", "Father", "Resident", "Caller"}
+             "Husband", "Son", "Daughter", "Mother", "Father", "Resident", "Caller",
+             "Herr", "Frau", "Mevrouw", "Meneer", "Dhr", "Mevr", "Madame", "Monsieur", "Mme", "Señora", "Señor", "Sra", "Sr"}
+# BRANE tagged the anticoagulant "Marcumar" as PERSON (confidence 1.0). Masking a drug name removes a clinically
+# critical fact, so known medication names are never treated as names (product gap documented in the policy matrix).
+MEDICATION_NAMES = {n.lower() for n in (
+    "Marcumar", "Warfarin", "Coumadin", "Sintrom", "Acenocoumarol", "Phenprocoumon", "Apixaban", "Eliquis", "Rivaroxaban",
+    "Xarelto", "Dabigatran", "Pradaxa", "Edoxaban", "Lixiana", "Heparin", "Clexane", "Enoxaparin", "Clopidogrel", "Plavix",
+    "Ticagrelor", "Brilique", "Aspirin", "Ascal", "Metformin", "Insulin", "Lantus", "Novorapid", "Digoxin", "Bisoprolol",
+    "Metoprolol", "Ramipril", "Lisinopril", "Amlodipine", "Atorvastatin", "Simvastatin", "Furosemide", "Lasix",
+    "Salbutamol", "Ventolin", "Prednisolone", "Prednisone", "Morphine", "Tramadol", "Oxycodone", "Fentanyl",
+    "Ibuprofen", "Paracetamol", "Diclofenac", "Levothyroxine", "Euthyrox", "Lithium", "Methotrexate", "Truvada")}
 
 
 def expand_person(text: str, sample: str) -> str:
@@ -133,6 +147,8 @@ def analyse(payload: dict, emit) -> None:
     down = bool(payload.get("simulateDown"))
     premask = True  # brain: identifiers never go into any prompt, so minimisation before BRANE is not optional
     case_id = "C-" + uuid.uuid4().hex[:6].upper()
+    t_case = time.time()
+    lang = detect_language(text)
     log = {"ts": now(), "case_id": case_id, "scenario": scenario["title"], "company_size": size,
            "input_sha256": hashlib.sha256(text.encode()).hexdigest(), "simulated_outage": down}
 
@@ -140,7 +156,8 @@ def analyse(payload: dict, emit) -> None:
         emit({"type": "step", "n": n, "title": title, "detail": detail, "status": status, "data": data or {}})
 
     # 1 ── receive
-    step(1, "Document received", f"Case {case_id}. {len(text)} characters, scenario: {scenario['title']}.")
+    step(1, "Document received", f"Case {case_id}. {len(text)} characters, scenario: {scenario['title']}, "
+         f"language: {lang}.")
     if not text.strip():
         step(1, "Nothing to analyse", "The document is empty.", "error")
         return
@@ -199,6 +216,9 @@ def analyse(payload: dict, emit) -> None:
         if d["label"] == "PERSON" and d.get("confidence", 1) < PERSON_MIN_CONF:
             ignored.append(f"{d.get('sampleText', '').strip()} ({d.get('confidence', 0):.2f})")
             continue
+        if d["label"] == "PERSON" and d.get("sampleText", "").strip().lower() in MEDICATION_NAMES:
+            ignored.append(f"{d.get('sampleText', '').strip()} (medication name, kept)")
+            continue
         floor, legal, reason = LEGAL_FLOOR.get(d["label"], ("placeholder", "GDPR Art. 5(1)(c)", "Not needed for the task."))
         if d["label"] in ART9_LABELS and not person_context:
             floor, legal, reason = ("allow", "GDPR Art. 4(1), Recital 26",
@@ -219,6 +239,13 @@ def analyse(payload: dict, emit) -> None:
             floor, legal, reason = LEGAL_FLOOR[idf["label"]]
             findings.append({"label": idf["label"], "text": idf["text"], "team": "not detected", "floor": floor,
                              "final": floor, "legal": legal, "reason": reason, "enforced_by": "local guard"})
+    if payload.get("scenario", "er") in ("er", "portal"):
+        # brain: every intake note / patient message is about an identifiable patient -> LOCAL ONLY. This also keeps
+        # non-English messages safe, where our English keyword lists would see less than BRANE.
+        findings.append({"label": "PATIENT_CASE", "text": "", "team": "not configured", "floor": "local", "final": "local",
+                         "legal": "GDPR Art. 4(1), 9(1); team legal brain: patient cases LOCAL ONLY",
+                         "reason": "Intake notes and patient messages are about an identifiable patient: internal model only.",
+                         "enforced_by": "local guard"})
     for s in scan["signals"]:
         findings.append({"label": s["code"], "text": s["hits"][0]["match"], "team": "not configured", "floor": s["action"],
                          "final": s["action"], "legal": s["legal"], "reason": s["reason"], "enforced_by": "local guard"})
@@ -324,7 +351,7 @@ def analyse(payload: dict, emit) -> None:
                     last_tok[ln.lower()] = f"[LAST_{counter['LAST']}]"
                     mapping[last_tok[ln.lower()]] = ln
                 lt = last_tok[ln.lower()]
-            given = parts[:-1] if ln else parts
+            given = [p for p in (parts[:-1] if ln else parts) if p[:1].isupper()]  # skip particles: de, van, von
             ft = None
             if given:
                 key = " ".join(given).lower()
@@ -412,8 +439,21 @@ def analyse(payload: dict, emit) -> None:
     reviewer = draft
     for token, original in mapping.items():
         reviewer = reviewer.replace(token, original)
-    CASES[case_id] = {"mapping": mapping}
     routed = hdr.get("x-brane-routed-to", "?")
+    receipt = {
+        "case_id": case_id, "created": now(), "scenario": scenario["title"], "language": lang,
+        "route": routed, "model": hdr.get("x-brane-model-resolved", model),
+        "brane_local_cause": hdr.get("x-brane-local-cause", ""),
+        "brane_semantic_matches": hdr.get("x-brane-semantic-matches", ""),
+        "identifiers_replaced": sum(1 for t in mapping if not t.startswith("[removed")),
+        "values_removed": sum(1 for f in findings if f["final"] == "remove"),
+        "hidden_instructions_quarantined": len(scan["injections"]),
+        "protection_rules_applied": sum(1 for a in advice_unique if a["action"] != "allow"),
+        "identifiers_in_text_sent": 0,  # guaranteed by the egress check above (otherwise nothing is sent)
+        "reached_external_ai_model": routed == "cloud",
+        "ai_seconds": round(time.time() - t_case, 1),
+    }
+    CASES[case_id] = {"mapping": mapping, "ai_seconds": receipt["ai_seconds"]}
     step(5, "Answer received via BRANE", f"Routed to {routed} · model {hdr.get('x-brane-model-resolved', model)} · "
          f"BRANE redacted: {hdr.get('x-brane-redacted', '?')} · {secs:.1f}s.", "done", {"headers": hdr})
     step(6, "Draft ready for human review", "This is a recommendation only. An authorised person must approve, "
@@ -422,7 +462,7 @@ def analyse(payload: dict, emit) -> None:
             "local_placeholders": sorted(mapping), "seconds": round(secs, 1), "human_decision": "pending"}
     audit(log)
     emit({"type": "result", "case_id": case_id, "route": routed, "spans": spans, "text": text, "draft": reviewer,
-          "advice": advice_unique, "notes": notes, "headers": hdr,
+          "advice": advice_unique, "notes": notes, "headers": hdr, "receipt": receipt, "language": lang,
           "headline": f"Draft ready · processed on {'the internal GPU' if routed == 'local' else 'the cloud model'} · "
                       f"{sum(1 for a in advice_unique if a['action'] != 'allow')} protection rule(s) applied."})
 
@@ -449,6 +489,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(out)
         elif self.path == "/api/samples":
             self._json(200, json.loads((ROOT / "samples.json").read_text(encoding="utf-8")))
+        elif self.path == "/api/stats":
+            self._json(200, stats())
         elif self.path == "/api/policy":
             try:
                 _, _, p = brane("GET", "/policy", timeout=15)
@@ -483,12 +525,34 @@ class Handler(BaseHTTPRequestHandler):
                      "final_category": body.get("final_category"), "ai_suggested": body.get("ai_suggested"),
                      "overrode_ai": (body.get("final_category") is not None and body.get("ai_suggested") is not None
                                      and body.get("final_category") != body.get("ai_suggested")),
-                     "comment_len": len(body.get("comment", ""))}
+                     "comment_len": len(body.get("comment", "")),
+                     # nurse-first (blind) assessment: her own category BEFORE she saw the AI suggestion
+                     "initial_category": body.get("initial_category"),
+                     "changed_after_seeing_ai": (body.get("initial_category") is not None
+                                                 and body.get("initial_category") != body.get("final_category")),
+                     "review_seconds": round(float(body.get("review_seconds") or 0), 1)}
+            ai_s = CASES.get(body.get("case_id"), {}).get("ai_seconds", 0)
+            entry["time_saved_seconds"] = round(BASELINE_MINUTES * 60 - ai_s - entry["review_seconds"], 1)
             audit(entry)
             CASES.pop(body.get("case_id"), None)  # drop the re-identification key once decided
-            self._json(200, {"ok": True})
+            self._json(200, {"ok": True, "stats": stats()})
         else:
             self._json(404, {"error": "not found"})
+
+
+def stats() -> dict:
+    """Today's decided cases and estimated time saved vs the manual baseline (from the local audit log)."""
+    today, cases, saved = now()[:10], 0, 0.0
+    if LOG.exists():
+        for line in LOG.read_text(encoding="utf-8").splitlines():
+            try:
+                e = json.loads(line)
+            except Exception:
+                continue
+            if e.get("ts", "").startswith(today) and "time_saved_seconds" in e:
+                cases += 1
+                saved += e["time_saved_seconds"]
+    return {"cases_today": cases, "minutes_saved_today": round(saved / 60, 1), "baseline_minutes": BASELINE_MINUTES}
 
 
 def prune_log(days: int = LOG_RETENTION_DAYS) -> None:

@@ -141,6 +141,9 @@ INJECTION_TERMS = [
     "forget your rules", "bypass", "unredacted", "do not anonymi", "do not pseudonymi", "do not mask",
     "print the original", "reveal the", "skip the privacy", "privacy filter", "note to the ai",
     "instruction to the ai", "admin mode", "full medical record to", "send the full record",
+    # Dutch / German / French / Spanish variants for multilingual patient messages
+    "negeer alle", "negeer de regels", "ignoriere alle", "ignoriere die regeln", "ignorez toutes", "ignorez les règles",
+    "ignora todas", "ignora las reglas",
 ]
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
@@ -158,7 +161,26 @@ FIRST_PERSON_RE = re.compile(r"\b(?:i|my|me|i'm|i've)\b", re.I)
 # Even in a staff "protocol question", someone describing their OWN current symptoms is a patient case.
 # The scenario picker is a trust boundary, so this check ignores it.
 OWN_SYMPTOMS_RE = re.compile(r"\b(?:i've had|i have had|i have|i am having|i'm having|i feel|i felt|i can't breathe|"
-                             r"my (?:left|right|chest|head|heart|stomach|belly|arm|leg|back|throat|vision))\b", re.I)
+                             r"my (?:left|right|chest|head|heart|stomach|belly|arm|leg|back|throat|vision)|"
+                             r"ik heb|ik voel|ich habe|ich fühle|j'ai|je me sens|tengo|me duele)\b", re.I)
+
+# Very small stop-word language guess, only to tell the nurse which language the patient wrote in.
+_LANG_WORDS = {
+    "English": {"the", "and", "is", "with", "my", "have", "of", "since"},
+    "Dutch": {"de", "het", "een", "en", "ik", "mijn", "heb", "niet", "sinds", "van"},
+    "German": {"der", "die", "das", "und", "ich", "mein", "habe", "nicht", "seit", "mit"},
+    "French": {"le", "la", "les", "et", "je", "mon", "ma", "depuis", "avec", "pas"},
+    "Spanish": {"el", "la", "los", "y", "yo", "mi", "tengo", "desde", "con", "no"},
+}
+
+
+def detect_language(text: str) -> str:
+    words = re.findall(r"[a-zà-ÿ']+", text.lower())
+    scores = {lang: sum(w in vocab for w in words) for lang, vocab in _LANG_WORDS.items()}
+    best = max(scores, key=scores.get)
+    return best if scores[best] >= 2 else "English"
+
+
 SENTENCE_RE = re.compile(r"[^.!?\n]+[.!?]?")
 
 
@@ -276,5 +298,6 @@ SYSTEM_PROMPT = (
     "Use only information relevant to the current presenting problem. Urgency must depend only on clinical findings, "
     "never on personal characteristics of the patient. State a stated treatment preference as it is "
     "written and flag it for the clinician to verify; do not assess legal capacity or who may consent. Flag any uncertain, "
-    "missing or possibly outdated information. Answer in English, concise, with clear headings."
+    "missing or possibly outdated information. The case text may be written in any language: always answer in "
+    "English, concise, with clear headings."
 )

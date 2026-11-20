@@ -17,6 +17,16 @@ structured triage note, and **stops for the nurse's decision**. Every model call
    Every decision is logged (`final_category`, `ai_suggested`, `overrode_ai`).
 6. If BRANE is unavailable, **nothing is sent** (fail-closed).
 
+## Features
+
+- **Nurse-first (blind) assessment:** the nurse picks her own category before the AI suggestion is shown; then both
+  appear side by side. Her first choice, the AI's and the final one are logged (`changed_after_seeing_ai` measures anchoring).
+- **Privacy receipt per case:** counts only (identifiers replaced, values removed, route, model, who decided), downloadable as JSON.
+- **Time-saved counter:** measured AI + review time vs a manual baseline per case (`BASELINE_MINUTES`, default 8,
+  a team estimate to be replaced with a sourced figure).
+- **Multilingual patient messages:** Dutch, German, French, Spanish detected; the note is always written in English and
+  every patient case stays on the internal model.
+
 ## Run it
 
 Requirements: Python 3.10+ (standard library only), internet access to BRANE.

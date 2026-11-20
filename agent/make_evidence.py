@@ -114,7 +114,7 @@ POLICY = [
     ("R1", "Patient & relative identifiers: name, phone, e-mail, address, IP", "Not needed to assess urgency; relatives' data is third-party data",
      "GDPR Art. 4(1), 5(1)(c), 25, 32; Recital 30; CJEU C-582/14 Breyer", "LOCAL ONLY",
      "Agent replaces every variant with case tokens BEFORE BRANE ([FIRST_n] [LAST_n], titles kept so relatives stay distinguishable); BRANE PERSON/EMAIL/PHONE/ADDRESS/IP_ADDRESS = local",
-     "BRANE alone missed name variants on cloud turns ('J. Beispiel', bare first names) and tags words like 'Mark', 'Hello', 'Scrum' as PERSON. Wish: entity linking of name variants, and a per-category 'strip from prompt' action",
+     "BRANE alone missed name variants on cloud turns ('J. Beispiel', bare first names) and tags words like 'Mark', 'Hello', 'Scrum' and even the anticoagulant 'Marcumar' (confidence 1.0) as PERSON; the agent keeps known medication names. Wish: entity linking of name variants, and a per-category 'strip from prompt' action",
      "Agent log 'Text handed to BRANE' has no names; X-Brane-Routed-To: local", "T2 / T3"),
     ("R2", "Date of birth", "Age can matter clinically; the full date does not",
      "GDPR Art. 4(1), 5(1)(c), 25", "LOCAL ONLY (age derived locally)",

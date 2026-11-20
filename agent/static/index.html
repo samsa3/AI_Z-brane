@@ -109,6 +109,16 @@ details.more summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--i
 .rules li{margin:4px 0}
 .log{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)}
 code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.compare div{border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center;font-size:13px;color:var(--ink2)}
+.compare b{display:block;margin-top:6px;font-size:15px;color:var(--ink)}
+.agree{margin-top:10px;font-size:14px;padding:10px 12px;border-radius:10px;background:var(--green-soft)}
+.agree.no{background:var(--amber-soft)}
+.receipt{list-style:none;margin:0;padding:0;font-size:14px}
+.receipt li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.receipt li:last-child{border-bottom:0}
+.receipt span{color:var(--muted)}
+.counter{font-size:13px;color:var(--ink2);background:var(--soft);border-radius:999px;padding:4px 10px}
 </style>
 </head>
 <body>
@@ -117,6 +127,7 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
     <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
     <h1>Triage Assistant</h1>
     <div class="grow"></div>
+    <span id="stats" class="counter" title="Estimated against a manual baseline (team estimate, replace with your hospital's figure)">Today: 0 cases</span>
     <span id="brane" class="status"><i></i><span>Checking protection…</span></span>
   </div>
 </header>
@@ -163,15 +174,9 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
     <div class="shield" id="shield"></div>
   </section>
 
-  <section class="card hidden" id="noteCard">
-    <h2><span class="n">2</span>Suggested triage note</h2>
-    <div class="ai" id="ai"></div>
-    <div class="note" id="draft"></div>
-    <p class="small">Prepared by AI as support. Please check it against the patient.</p>
-  </section>
-
   <section class="card hidden" id="decideCard">
-    <h2><span class="n">3</span>Your decision</h2>
+    <h2><span class="n">2</span><span id="decideTitle">Your assessment first</span></h2>
+    <p class="small" id="decideHint" style="margin:0 0 12px">Read the case and choose a category. The AI suggestion stays hidden until you lock your choice.</p>
     <div class="cats" id="cats">
       <button class="cat c1" data-c="1" aria-pressed="false"><b>1</b>Immediate</button>
       <button class="cat c2" data-c="2" aria-pressed="false"><b>2</b>Very urgent</button>
@@ -179,9 +184,14 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
       <button class="cat c4" data-c="4" aria-pressed="false"><b>4</b>Standard</button>
       <button class="cat c5" data-c="5" aria-pressed="false"><b>5</b>Non-urgent</button>
     </div>
+    <div class="acts" id="lockActs"><button class="btn main" id="lock" disabled>Lock and show AI suggestion</button></div>
+    <div class="hidden" id="compareBox">
+      <div class="compare"><div>Your first assessment<b id="cmpYou"></b></div><div>AI suggestion<b id="cmpAi"></b></div></div>
+      <div class="agree" id="agree"></div>
+    </div>
     <div class="msg hidden" id="diff"></div>
     <input class="reason hidden" id="comment" placeholder="Reason for your choice">
-    <div class="acts">
+    <div class="acts hidden" id="finalActs">
       <button class="btn main" id="confirm" disabled>Confirm decision</button>
       <button class="btn" id="editBtn">Edit note</button>
       <button class="btn quiet" id="reject">Reject AI note</button>
@@ -189,7 +199,21 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
     <p class="small">You make the final decision. The AI only suggests.</p>
   </section>
 
+  <section class="card hidden" id="noteCard">
+    <h2><span class="n">3</span>AI triage note</h2>
+    <div class="ai" id="ai"></div>
+    <div class="note" id="draft"></div>
+    <p class="small">Prepared by AI as support. Please check it against the patient.</p>
+  </section>
+
   <section class="hidden" id="doneCard"><div class="saved" id="decided"></div></section>
+
+  <section class="card hidden" id="receiptCard">
+    <h2><span class="n">4</span>Privacy receipt</h2>
+    <ul class="receipt" id="receipt"></ul>
+    <div class="acts"><button class="btn" id="dl">Download receipt</button></div>
+    <p class="small">Contains no patient data: only counts, routes and who decided.</p>
+  </section>
 
   <details class="more hidden" id="more">
     <summary>Details: what was protected and why</summary>
@@ -212,7 +236,7 @@ code{font-family:ui-monospace,Consolas,monospace;font-size:12px}
 <script>
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-let samples = [], last = null, outbound = null, aiLevel = null, chosen = null;
+let samples = [], last = null, outbound = null, aiLevel = null, chosen = null, initial = null, phase = "blind", tShown = 0, receipt = null;
 const NAMES = {1:"Immediate", 2:"Very urgent", 3:"Urgent", 4:"Standard", 5:"Non-urgent"};
 const ICON = {
   ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
@@ -226,6 +250,11 @@ fetch("/api/policy").then(r => r.json()).then(p => {
   else if (p.ok){ el.className = "status"; el.lastElementChild.textContent = "Protection: local rules only"; }
   else { el.className = "status bad"; el.lastElementChild.textContent = "Protection offline"; }
 }).catch(() => { $("#brane").className = "status bad"; $("#brane").lastElementChild.textContent = "Protection offline"; });
+
+/* time-saved counter (estimate vs manual baseline) */
+function showStats(st){ if (!st) return; $("#stats").textContent = `Today: ${st.cases_today} case${st.cases_today === 1 ? "" : "s"} · ~${st.minutes_saved_today} min saved`;
+  $("#stats").title = `Estimate: manual baseline ${st.baseline_minutes} min per case minus measured AI + review time (team estimate, replace with your hospital's figure)`; }
+fetch("/api/stats").then(r => r.json()).then(showStats).catch(() => {});
 
 /* examples */
 fetch("/api/samples").then(r => r.json()).then(s => { samples = s; fillSamples(); });
@@ -251,7 +280,7 @@ $("#go").onclick = async () => {
   const text = $("#text").value;
   if (!text.trim()){ $("#text").focus(); return; }
   $("#go").disabled = true; $("#go").textContent = "Working…";
-  ["#result","#noteCard","#decideCard","#doneCard","#more"].forEach(s => $(s).classList.add("hidden"));
+  ["#result","#noteCard","#decideCard","#doneCard","#more","#receiptCard"].forEach(s => $(s).classList.add("hidden"));
   $("#progress").classList.remove("hidden"); ["a","b","c","d"].forEach(k => stepState(k, null)); stepState("a", "run");
   $("#steps").innerHTML = ""; outbound = null;
   try {
@@ -310,17 +339,25 @@ function show(r){
   }[r.route] || ["red", ICON.stop, "Stopped", r.headline];
   $("#banner").className = "banner " + B[0];
   $("#banner").innerHTML = `${B[1]}<div><b>${B[2]}</b><span>${B[3]}</span></div>`;
-  $("#shield").innerHTML = protections(r).map(p => `<span>${esc(p)}</span>`).join("");
+  const chips = protections(r);
+  if (r.language && r.language !== "English") chips.unshift(`Written in ${r.language} · note in English`);
+  $("#shield").innerHTML = chips.map(p => `<span>${esc(p)}</span>`).join("");
   $("#result").classList.remove("hidden");
 
   const hasDraft = !!r.draft;
-  $("#noteCard").classList.toggle("hidden", !hasDraft);
+  receipt = r.receipt || null;
+  $("#noteCard").classList.add("hidden");            /* nurse-first: AI note hidden until she locks her choice */
   $("#decideCard").classList.toggle("hidden", !hasDraft);
   if (hasDraft){
     $("#draft").innerHTML = "<p>" + md(r.draft.replace(/^\s*suggested level:.*$/im, "")) + "</p>";
     $("#draft").contentEditable = false; $("#editBtn").textContent = "Edit note";
     $("#ai").innerHTML = aiLevel ? `AI suggests <span class="badge b${aiLevel}">${aiLevel}</span> ${NAMES[aiLevel]}` : "";
     $$("#cats .cat").forEach(c => c.setAttribute("aria-pressed", "false"));
+    phase = "blind"; initial = null; tShown = Date.now();
+    $("#decideTitle").textContent = "Your assessment first";
+    $("#decideHint").textContent = "Read the case and choose a category. The AI suggestion stays hidden until you lock your choice.";
+    $("#lock").disabled = true; $("#lockActs").classList.remove("hidden");
+    $("#compareBox").classList.add("hidden"); $("#finalActs").classList.add("hidden");
     $("#confirm").disabled = true; $("#diff").classList.add("hidden"); $("#comment").classList.add("hidden"); $("#comment").value = "";
     stepState("d", "run");
   }
@@ -351,21 +388,42 @@ function renderDoc(){
 $("#reveal").onchange = renderDoc;
 
 /* decision: the nurse chooses */
-$$("#cats .cat").forEach(b => b.onclick = () => {
-  chosen = +b.dataset.c;
-  $$("#cats .cat").forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false"));
+function pick(c){
+  chosen = c;
+  $$("#cats .cat").forEach(x => x.setAttribute("aria-pressed", +x.dataset.c === c ? "true" : "false"));
+  if (phase === "blind"){ $("#lock").disabled = false; return; }
   const differs = aiLevel && chosen !== aiLevel;
   $("#diff").classList.toggle("hidden", !differs); $("#comment").classList.toggle("hidden", !differs);
   if (differs) $("#diff").textContent = `You chose ${chosen} (${NAMES[chosen]}). The AI suggested ${aiLevel}. Please add a short reason.`;
   $("#confirm").disabled = false;
-});
+}
+$$("#cats .cat").forEach(b => b.onclick = () => pick(+b.dataset.c));
+$("#lock").onclick = () => {
+  initial = chosen; phase = "final";
+  $("#lockActs").classList.add("hidden");
+  $("#noteCard").classList.remove("hidden");
+  $("#cmpYou").innerHTML = `<span class="badge b${initial}">${initial}</span> ${NAMES[initial]}`;
+  $("#cmpAi").innerHTML = aiLevel ? `<span class="badge b${aiLevel}">${aiLevel}</span> ${NAMES[aiLevel]}` : "No level stated";
+  const same = aiLevel === initial;
+  $("#agree").className = "agree" + (same ? "" : " no");
+  $("#agree").textContent = !aiLevel ? "The AI did not state a level. Use the note as support." :
+    same ? "You and the AI agree." : "You and the AI differ. Check the AI's reasons in the note, then make the final decision.";
+  $("#compareBox").classList.remove("hidden");
+  $("#decideTitle").textContent = "Final decision";
+  $("#decideHint").textContent = "Keep your choice or change it after reading the AI note.";
+  $("#finalActs").classList.remove("hidden");
+  pick(initial);
+};
 $("#draft").addEventListener("input", () => { $("#draft").dataset.edited = "1"; });
 $("#editBtn").onclick = () => { const d = $("#draft"), on = d.contentEditable !== "true"; d.contentEditable = on; $("#editBtn").textContent = on ? "Done editing" : "Edit note"; if (on) d.focus(); };
 async function decide(decision){
   if (decision === "approved" && aiLevel && chosen !== aiLevel && !$("#comment").value.trim()){ $("#comment").focus(); return; }
   const edited = $("#editBtn").textContent === "Done editing" || $("#draft").dataset.edited === "1";
-  await fetch("/api/decision", {method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({case_id: last.case_id, decision, edited, comment: $("#comment").value, final_category: chosen, ai_suggested: aiLevel})});
+  const res = await fetch("/api/decision", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({case_id: last.case_id, decision, edited, comment: $("#comment").value, final_category: chosen,
+      ai_suggested: aiLevel, initial_category: initial, review_seconds: (Date.now() - tShown) / 1000})});
+  const resp = await res.json().catch(() => ({}));
+  showStats(resp.stats);
   $("#draft").contentEditable = false;
   $("#decideCard").classList.add("hidden");
   const ok = decision === "approved";
@@ -375,7 +433,33 @@ async function decide(decision){
     : "AI note rejected. Please assess the patient without it.";
   $("#doneCard").classList.remove("hidden");
   stepState("d", ok ? "done" : "warn");
+  if (receipt){
+    receipt = Object.assign({}, receipt, {
+      decided_by: "nurse (demo reviewer)", decided_at: new Date().toISOString(), human_decision: decision,
+      nurse_first_assessment: initial, ai_suggested_level: aiLevel, final_category: ok ? chosen : null,
+      changed_after_seeing_ai: ok && initial !== chosen, review_seconds: Math.round((Date.now() - tShown) / 1000)
+    });
+    const rows = [
+      ["Case", receipt.case_id], ["Language", receipt.language],
+      ["Processed on", receipt.route === "local" ? "Internal AI (no external model)" : receipt.route === "cloud" ? "Cloud model (no identifiers)" : receipt.route],
+      ["Identifiers replaced before the safety check", receipt.identifiers_replaced],
+      ["Identifiers in the text sent", receipt.identifiers_in_text_sent],
+      ["Values removed (not needed)", receipt.values_removed],
+      ["Hidden instructions quarantined", receipt.hidden_instructions_quarantined],
+      ["Protection rules applied", receipt.protection_rules_applied],
+      ["Nurse first / AI / final", `${initial ?? "-"} / ${aiLevel ?? "-"} / ${receipt.final_category ?? "rejected"}`],
+      ["Decided by", "Nurse, " + new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})]
+    ];
+    $("#receipt").innerHTML = rows.map(([k, v]) => `<li><span>${esc(k)}</span><b>${esc(v)}</b></li>`).join("");
+    $("#receiptCard").classList.remove("hidden");
+  }
 }
+$("#dl").onclick = () => {
+  if (!receipt) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(receipt, null, 2)], {type: "application/json"}));
+  a.download = `privacy-receipt-${receipt.case_id}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
 $("#confirm").onclick = () => decide("approved");
 $("#reject").onclick = () => decide("rejected");
 </script>

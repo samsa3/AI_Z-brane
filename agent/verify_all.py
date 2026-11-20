@@ -54,7 +54,7 @@ check("Every model call goes through BRANE (no direct provider call, single netw
 
 # 2. No secrets in shared files
 leaks = [p.name for p in SHARED if p.exists() and re.search("brn_live_[0-9a-f]{8}|" + "Brane" + "Main-", p.read_text(encoding="utf-8"))]
-ign = (ROOT / ".gitignore").read_text(encoding="utf-8")
+ign = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / ".gitignore", ROOT.parent / ".gitignore") if p.exists())
 # (re-identification mappings are kept in memory only, server.CASES, so there is no mappings/ folder to ignore)
 check("No API key / password in any shareable file; .env and logs/ git-ignored",
       "AGENTS.md 'Never commit secrets'; organiser mail 'Do not publish it'",
@@ -71,7 +71,7 @@ check("Synthetic data only (example.org e-mails, +00 phone prefix, fictional nam
 
 # 4. BRANE team policy is the one we defined
 r = subprocess.run([sys.executable, "policy_sync.py", "verify", "policy/triage_policy.json"], capture_output=True, text=True)
-check("BRANE team policy in force = policy/triage_policy.json (25 categories + 4 semantic rules)",
+check("BRANE team policy in force = policy/triage_policy.json (25 categories + 8 semantic rules)",
       "Brief: 'set per-category actions ... add Custom Semantic Categories'",
       r.returncode == 0, r.stdout.strip().splitlines()[-1] if r.stdout else r.stderr[-200:])
 
