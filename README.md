@@ -5,6 +5,9 @@ structured triage note, and **stops for the nurse's decision**. Every model call
 
 > The AI suggests, the nurse decides. Patient data never reaches an external AI model.
 
+**Working on this repo (humans or AI assistants)?** Read [`AGENTS.md`](AGENTS.md) first, then
+[`AGENT-PLAN.md`](AGENT-PLAN.md) and [`AGENT-CHAT.md`](AGENT-CHAT.md).
+
 ## What it does
 
 1. A nurse pastes an intake note or patient message (synthetic data only).
