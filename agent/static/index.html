@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triage Assistant</title>
+<style>
+/* Hospital look: calm white surfaces, clinical blue, standard triage colours (red/orange/yellow/green/blue).
+   System fonts only: no external resources (AGENTS.md §7). */
+:root{
+  --bg:#f2f5f8; --surface:#ffffff; --sunk:#f6f8fa; --ink:#15222d; --ink2:#465868; --muted:#7a8a98; --line:#dfe6ec; --line2:#c9d4dd;
+  --brand:#1b67a6; --brand-ink:#ffffff; --brand-soft:#e7f0f8;
+  --ok:#1d7f52; --ok-soft:#e3f3ea; --warn:#a86a0b; --warn-soft:#fbf1df; --bad:#b63b2a; --bad-soft:#fae8e4;
+  --t1:#d22f2f; --t2:#ea7317; --t3:#f2b705; --t4:#2e9a52; --t5:#1b67a6;
+  --shadow:0 1px 2px rgba(20,40,60,.06), 0 2px 8px rgba(20,40,60,.05);
+  --r:14px;
+  --font:"Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono:ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e141a; --surface:#151e26; --sunk:#1a2530; --ink:#e8eef3; --ink2:#b4c2cd; --muted:#82929f; --line:#24313c; --line2:#31414e;
+    --brand:#5ea7e3; --brand-ink:#08192a; --brand-soft:#15283a;
+    --ok:#4cc386; --ok-soft:#123024; --warn:#e3ac53; --warn-soft:#3a2b12; --bad:#ef7a66; --bad-soft:#3a1c17;
+    --shadow:none; color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15.5px/1.55 var(--font);-webkit-font-smoothing:antialiased}
+button,select,textarea,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 40%,transparent);outline-offset:2px;border-radius:8px}
+.hidden{display:none !important}
+
+/* header */
+header{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{max-width:1180px;margin:0 auto;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{width:36px;height:36px;border-radius:10px;background:var(--brand);display:grid;place-items:center;flex:none}
+.logo svg{width:20px;height:20px}
+.title b{display:block;font-size:16.5px;letter-spacing:-.01em}
+.title span{display:block;font-size:12.5px;color:var(--muted)}
+.grow{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink2);padding:5px 11px;border-radius:999px;background:var(--sunk);border:1px solid var(--line);white-space:nowrap}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chip.ok i{background:var(--ok)} .chip.bad i{background:var(--bad)}
+
+/* layout */
+main{max-width:1180px;margin:0 auto;padding:22px 20px 60px;display:grid;grid-template-columns:400px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:980px){main{grid-template-columns:1fr}}
+.card{scroll-margin-top:90px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:20px}
+.left{position:sticky;top:84px}
+@media (max-width:980px){.left{position:static}}
+.right{display:grid;gap:16px;min-width:0}
+h2{font-size:16px;margin:0 0 4px;font-weight:650}
+.sub{font-size:13px;color:var(--muted);margin:0 0 14px}
+.label{display:block;font-size:12.5px;font-weight:600;color:var(--ink2);margin:0 0 6px}
+
+/* case input */
+.seg{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:var(--sunk);border:1px solid var(--line);border-radius:12px;margin-bottom:14px}
+.seg button{border:0;background:transparent;border-radius:9px;padding:8px 4px;font-size:13px;color:var(--ink2);line-height:1.25}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 3px rgba(20,40,60,.12)}
+select,textarea,input[type=text]{width:100%;border:1px solid var(--line2);border-radius:10px;background:var(--surface);padding:10px 12px}
+select{margin-bottom:12px}
+textarea{min-height:190px;resize:vertical;line-height:1.6}
+.primary{width:100%;margin-top:14px;border:0;border-radius:12px;padding:13px;background:var(--brand);color:var(--brand-ink);font-size:15.5px;font-weight:650;display:flex;align-items:center;justify-content:center;gap:10px}
+.primary:disabled{opacity:.65;cursor:default}
+.spin{display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.row2{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.link{background:none;border:0;color:var(--brand);font-size:12.5px;padding:2px}
+details.opts{margin-top:12px;font-size:13px;color:var(--ink2)}
+details.opts summary{cursor:pointer;color:var(--muted)}
+details.opts .o{display:flex;gap:8px;align-items:center;margin-top:10px}
+details.opts select{margin:0;width:auto;padding:5px 8px}
+
+/* stepper */
+.stepper{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;list-style:none;margin:0;padding:0}
+.stepper li{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--muted);min-width:0}
+.stepper .n{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--sunk);border:1.5px solid var(--line2);color:var(--muted)}
+.stepper li.now{color:var(--ink);font-weight:600}
+.stepper li.now .n{border-color:var(--brand);color:var(--brand);background:var(--brand-soft)}
+.stepper li.done .n{background:var(--ok);border-color:var(--ok);color:#fff}
+.stepper li.stop .n{background:var(--bad);border-color:var(--bad);color:#fff}
+@media (max-width:620px){.stepper{grid-template-columns:repeat(4,auto);justify-content:space-between}.stepper .t{display:none}.stepper li.now .t{display:inline}}
+
+/* empty state */
+.trust{list-style:none;padding:0;margin:16px 0 0;display:grid;gap:10px}
+.trust li{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--ink2)}
+.trust svg{flex:none;width:20px;height:20px;color:var(--ok);margin-top:1px}
+
+/* key processes */
+.proc{list-style:none;margin:0;padding:0;display:grid}
+.proc li{display:grid;grid-template-columns:28px 1fr;gap:12px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.proc li:last-child{border-bottom:0}
+.proc .ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--sunk);color:var(--muted);border:1.5px solid var(--line2)}
+.proc .ic svg{width:15px;height:15px}
+.proc li.run .ic{border-color:var(--brand);color:var(--brand)}
+.proc li.done .ic{background:var(--ok);border-color:var(--ok);color:#fff}
+.proc li.stop .ic{background:var(--bad);border-color:var(--bad);color:#fff}
+.proc b{display:block;font-size:14.5px}
+.proc span.d{font-size:13.5px;color:var(--ink2)}
+.banner{display:flex;gap:12px;align-items:flex-start;border-radius:12px;padding:13px 15px;margin-top:14px}
+.banner svg{flex:none;width:22px;height:22px;margin-top:1px}
+.banner b{display:block}
+.banner span{font-size:13.5px;color:var(--ink2)}
+.banner.ok{background:var(--ok-soft)} .banner.ok svg{color:var(--ok)}
+.banner.info{background:var(--brand-soft)} .banner.info svg{color:var(--brand)}
+.banner.bad{background:var(--bad-soft)} .banner.bad svg{color:var(--bad)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.tags span{font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--sunk);border:1px solid var(--line);color:var(--ink2)}
+
+/* triage categories */
+.cats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+@media (max-width:620px){.cats{grid-template-columns:1fr}}
+.cat{position:relative;text-align:left;border:1.5px solid var(--line2);background:var(--surface);border-radius:12px;padding:12px 10px 10px 16px;overflow:hidden;line-height:1.25;transition:border-color .15s, background .15s}
+.cat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--c)}
+.cat b{display:block;font-size:20px}
+.cat span{display:block;font-size:13px;font-weight:600}
+.cat small{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.cat:hover{border-color:var(--c)}
+.cat[aria-pressed="true"]{border-color:var(--c);background:color-mix(in srgb,var(--c) 12%,var(--surface))}
+.cat[aria-pressed="true"]::after{content:"✓";position:absolute;top:8px;right:10px;font-weight:700;color:var(--c)}
+.c1{--c:var(--t1)} .c2{--c:var(--t2)} .c3{--c:var(--t3)} .c4{--c:var(--t4)} .c5{--c:var(--t5)}
+.kbd{font-size:12px;color:var(--muted);margin:10px 0 0}
+kbd{font-family:var(--mono);font-size:11.5px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;padding:0 5px;background:var(--sunk)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+.btn{border:1px solid var(--line2);background:var(--surface);border-radius:10px;padding:10px 16px;font-weight:600;font-size:14.5px}
+.btn.go{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.btn.confirm{background:var(--ok);border-color:var(--ok);color:#fff;flex:1;min-width:190px}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.quiet{color:var(--bad)}
+
+/* compare + note */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 0}
+.compare div{border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:12.5px;color:var(--muted)}
+.compare b{display:flex;gap:8px;align-items:center;margin-top:6px;font-size:14.5px;color:var(--ink)}
+.lvl{display:inline-grid;place-items:center;min-width:24px;height:24px;border-radius:6px;color:#fff;font-weight:700;font-size:13px;padding:0 6px}
+.lvl.v1{background:var(--t1)} .lvl.v2{background:var(--t2)} .lvl.v3{background:var(--t3);color:#2a2000} .lvl.v4{background:var(--t4)} .lvl.v5{background:var(--t5)} .lvl.v0{background:var(--muted)}
+.agree{margin-top:10px;font-size:13.5px;padding:10px 12px;border-radius:10px;background:var(--ok-soft)}
+.agree.no{background:var(--warn-soft)}
+.reason{margin-top:10px}
+.note{background:var(--sunk);border-radius:12px;padding:16px 18px;font-size:14.5px;line-height:1.6;overflow-wrap:anywhere}
+.note h4{margin:.9em 0 .25em;font-size:14.5px} .note h4:first-child{margin-top:0}
+.note p{margin:.35em 0}
+.note[contenteditable=true]{background:var(--surface);outline:2px solid var(--brand)}
+.notehead{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.notehead span{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--ink2)}
+.hint{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+
+/* saved + receipt */
+.saved{display:flex;gap:12px;align-items:center;border-radius:12px;padding:14px 16px;background:var(--ok-soft);font-weight:600}
+.saved.rej{background:var(--bad-soft)}
+.receipt{list-style:none;margin:12px 0 0;padding:0;font-size:13.5px}
+.receipt li{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--line)}
+.receipt li:last-child{border-bottom:0}
+.receipt span{color:var(--muted)}
+.receipt b{text-align:right;font-variant-numeric:tabular-nums}
+
+/* details */
+details.more{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 20px}
+details.more summary,details.rc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--ink2)}
+.cap{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin:16px 0 6px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cap label{text-transform:none;letter-spacing:0;font-weight:400;font-size:12.5px}
+.box{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--sunk);border-radius:10px;padding:12px;font-size:13.5px;line-height:1.85}
+.m{border-radius:5px;padding:1px 6px;font-size:11px;font-weight:700;background:var(--ink);color:var(--surface);white-space:nowrap}
+.m.reveal{background:none;color:inherit;font-size:inherit;font-weight:inherit;border-bottom:2px solid var(--warn);border-radius:0;padding:0}
+.tok{font-family:var(--mono);font-size:12px;background:var(--warn-soft);border-radius:4px;padding:0 4px}
+.rules{margin:0;padding-left:18px;font-size:13.5px;color:var(--ink2)} .rules li{margin:4px 0}
+.log{margin:0;padding-left:18px;font-size:13px;color:var(--ink2)}
+code{font-family:var(--mono);font-size:12px}
+@media (max-width:620px){
+  header{position:static}
+  .bar{gap:8px;padding:10px 16px}
+  main{padding:14px 16px 48px;gap:14px}
+  .card{padding:16px;scroll-margin-top:12px}
+  .cat{display:flex;align-items:baseline;gap:10px;padding:10px 12px 10px 18px}
+  .cat b{font-size:17px} .cat small{margin:0 0 0 auto}
+}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+    <div class="title"><b>Triage Assistant</b><span id="ward">Emergency department · Regional hospital</span></div>
+    <div class="grow"></div>
+    <span id="stats" class="chip" title="Estimate against a manual baseline per case">Today: 0 cases</span>
+    <span id="brane" class="chip"><i></i><span>Checking protection…</span></span>
+  </div>
+</header>
+
+<main>
+  <section class="card left" aria-labelledby="caseTitle">
+    <h2 id="caseTitle">New case</h2>
+    <p class="sub">Personal details are protected automatically.</p>
+    <div class="seg" id="scen" role="group" aria-label="Type of case">
+      <button data-v="er" aria-pressed="true">Emergency intake</button>
+      <button data-v="portal" aria-pressed="false">Patient message</button>
+      <button data-v="protocol" aria-pressed="false">Protocol question</button>
+    </div>
+    <label class="label" for="samples" id="samplesLabel">Waiting in the emergency department</label>
+    <select id="samples"><option value="">Select a case…</option></select>
+    <label class="label" for="text">Patient note</label>
+    <textarea id="text" placeholder="Paste or type the intake note or the patient's message."></textarea>
+    <button class="primary" id="go"><span id="goLabel">Check and prepare</span></button>
+    <div class="row2"><span>Names and numbers are hidden before anything is checked.</span><button class="link" id="clear">Clear</button></div>
+    <details class="opts">
+      <summary>Options</summary>
+      <div class="o"><label for="size">Setting</label>
+        <select id="size"><option value="clinic">Clinic / GP practice</option><option value="regional" selected>Regional hospital</option><option value="university">University hospital</option></select></div>
+      <label class="o"><input type="checkbox" id="down"> Outage drill: run with the safety check offline</label>
+    </details>
+  </section>
+
+  <div class="right">
+    <section class="card">
+      <ol class="stepper" id="stepper" aria-label="Progress">
+        <li data-s="1" class="now"><span class="n">1</span><span class="t">Case</span></li>
+        <li data-s="2"><span class="n">2</span><span class="t">Privacy check</span></li>
+        <li data-s="3"><span class="n">3</span><span class="t">Your assessment</span></li>
+        <li data-s="4"><span class="n">4</span><span class="t">Decision</span></li>
+      </ol>
+    </section>
+
+    <section class="card" id="emptyCard">
+      <h2 style="font-size:18px">Ready for the next patient</h2>
+      <p class="sub" style="margin:0">Select a waiting case or paste a note on the left, then press <b>Check and prepare</b>.</p>
+      <ul class="trust">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Names, contact details and patient numbers are hidden before any check.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Patient cases are prepared by the hospital's internal AI only.</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>You decide the triage category. The AI only suggests.</li>
+      </ul>
+    </section>
+
+    <section class="card hidden" id="checkCard" aria-live="polite">
+      <h2>Privacy check</h2>
+      <ul class="proc" id="proc">
+        <li data-p="a"><span class="ic"></span><div><b>Personal details hidden</b><span class="d">Waiting…</span></div></li>
+        <li data-p="b"><span class="ic"></span><div><b>BRANE safety check</b><span class="d">Waiting…</span></div></li>
+        <li data-p="c"><span class="ic"></span><div><b>Triage note prepared</b><span class="d">Waiting…</span></div></li>
+      </ul>
+      <div class="banner hidden" id="banner"></div>
+      <div class="tags" id="shield"></div>
+    </section>
+
+    <section class="card hidden" id="decideCard" aria-labelledby="decideTitle">
+      <h2 id="decideTitle">Your assessment</h2>
+      <p class="sub" id="decideHint">Read the case and choose a category. The AI suggestion stays hidden until you lock your choice.</p>
+      <div class="cats" id="cats">
+        <button class="cat c1" data-c="1" aria-pressed="false"><b>1</b><span>Immediate</span><small>Seen now</small></button>
+        <button class="cat c2" data-c="2" aria-pressed="false"><b>2</b><span>Very urgent</span><small>Within 10 min</small></button>
+        <button class="cat c3" data-c="3" aria-pressed="false"><b>3</b><span>Urgent</span><small>Within 60 min</small></button>
+        <button class="cat c4" data-c="4" aria-pressed="false"><b>4</b><span>Standard</span><small>Within 120 min</small></button>
+        <button class="cat c5" data-c="5" aria-pressed="false"><b>5</b><span>Non-urgent</span><small>Within 240 min</small></button>
+      </div>
+      <p class="kbd">Tip: press <kbd>1</kbd>–<kbd>5</kbd> to choose.</p>
+      <div class="actions" id="lockActs"><button class="btn go" id="lock" disabled>Lock and show AI suggestion</button></div>
+      <div class="hidden" id="compareBox">
+        <div class="compare"><div>Your first assessment<b id="cmpYou"></b></div><div>AI suggestion<b id="cmpAi"></b></div></div>
+        <div class="agree" id="agree"></div>
+      </div>
+      <div class="hidden reason" id="reasonBox">
+        <label class="label" for="comment" id="diff">Reason for your choice</label>
+        <input type="text" id="comment" placeholder="e.g. vital signs normal on arrival">
+      </div>
+      <div class="actions hidden" id="finalActs">
+        <button class="btn confirm" id="confirm" disabled>Confirm decision</button>
+        <button class="btn" id="editBtn">Edit note</button>
+        <button class="btn quiet" id="reject">Reject AI note</button>
+      </div>
+    </section>
+
+    <section class="card hidden" id="noteCard" aria-labelledby="noteTitle">
+      <div class="notehead"><h2 id="noteTitle" style="margin:0">AI triage note</h2><span id="ai"></span></div>
+      <div class="note" id="draft"></div>
+      <p class="hint">Prepared by AI as support. Check it against the patient.</p>
+    </section>
+
+    <section class="card hidden" id="doneCard">
+      <div class="saved" id="decided"></div>
+      <details id="receiptBox" class="rc hidden" style="margin-top:12px">
+        <summary>Privacy receipt for this case</summary>
+        <ul class="receipt" id="receipt"></ul>
+        <div class="actions"><button class="btn" id="dl">Download receipt</button></div>
+        <p class="hint">Counts and routes only. No patient data.</p>
+      </details>
+    </section>
+
+    <details class="more hidden" id="more">
+      <summary>Details: what was protected and why</summary>
+      <div class="cap">Original note (never sent to an AI model)<label><input type="checkbox" id="reveal"> show values</label></div>
+      <div class="box" id="doc"></div>
+      <div class="cap">Text sent to the safety check (BRANE)</div>
+      <div class="box" id="outbound"></div>
+      <p class="hint">Deployment: the BRANE safety check is currently hosted by AI-Z and inspects the original note. It can also run on the hospital's own servers.</p>
+      <div class="cap">Rules applied</div>
+      <ul class="rules" id="law"></ul>
+      <p class="hint" id="notes"></p>
+      <div class="cap">All steps</div>
+      <ol class="log" id="steps"></ol>
+      <div class="cap">Technical evidence (X-Brane headers)</div>
+      <div id="hdr" class="hint"></div>
+    </details>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const NAMES = {1:"Immediate", 2:"Very urgent", 3:"Urgent", 4:"Standard", 5:"Non-urgent"};
+const SETTING = {clinic:"Clinic / GP practice", regional:"Regional hospital", university:"University hospital"};
+const ICON = {
+  ok:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>',
+  stop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4.5 4.5L19 7"/></svg>',
+  x:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  dot:'<span class="spin" style="width:12px;height:12px"></span>'
+};
+let scenario = "er", samples = [], last = null, outbound = null, aiLevel = null, chosen = null, initial = null,
+    phase = "blind", tShown = 0, receipt = null;
+
+/* header: protection status + time saved */
+fetch("/api/policy").then(r => r.json()).then(p => {
+  const el = $("#brane");
+  if (p.ok && !(p.summary || {}).isOpenBaseline){ el.className = "chip ok"; el.lastElementChild.textContent = "Data protection on"; }
+  else if (p.ok){ el.className = "chip"; el.lastElementChild.textContent = "Protection: local rules only"; }
+  else { el.className = "chip bad"; el.lastElementChild.textContent = "Protection offline"; }
+}).catch(() => { $("#brane").className = "chip bad"; $("#brane").lastElementChild.textContent = "Protection offline"; });
+function showStats(st){ if (!st) return;
+  $("#stats").textContent = `Today: ${st.cases_today} case${st.cases_today === 1 ? "" : "s"} · ~${st.minutes_saved_today} min saved`;
+  $("#stats").title = `Estimate: manual baseline ${st.baseline_minutes} min per case minus measured AI + review time (team estimate).`; }
+fetch("/api/stats").then(r => r.json()).then(showStats).catch(() => {});
+
+/* case input */
+fetch("/api/samples").then(r => r.json()).then(s => { samples = s; fillSamples(); });
+/* Work-queue titles shown to the nurse (presenting complaint, no names). The team's test label stays in the tooltip. */
+const QUEUE = {
+  t2:"Chest pressure radiating to the arm", t3:"Fall from a ladder · wrist pain, head wound", t5:"Car accident · heavy bleeding from the leg",
+  e1:"Sprained ankle · walking with pain", e2:"Collapse during a meeting · confusion, headache", e4:"Forehead cut · arrived from police custody",
+  x1:"Abdominal pain · vomiting", x3:"Abdominal pain and fever", x4:"Fall at home · new confusion", ml2:"Chest pain, low blood pressure (German)",
+  t3c:"Appointment change request", t4:"Cough and fever for five days", e3:"Appointment change · orthopaedics", ml1:"Fever and chest pain when breathing (Dutch)",
+  t1:"Red flags for chest pain on the phone", x2:"Chest pain and numb left arm"
+};
+const QUEUE_LABEL = {er:"Waiting in the emergency department", portal:"Patient inbox", protocol:"Saved questions"};
+function fillSamples(){
+  $("#samplesLabel").textContent = QUEUE_LABEL[scenario];
+  const list = samples.filter(x => x.scenario === scenario);
+  $("#samples").innerHTML = `<option value="">Select a case (${list.length} open)…</option>` +
+    list.map(x => `<option value="${esc(x.id)}" title="${esc(x.label)}">${esc(QUEUE[x.id] || x.label.replace(/^[A-Z]+\d*[a-z]? · /, ""))}</option>`).join("");
+}
+$$("#scen button").forEach(b => b.onclick = () => {
+  $$("#scen button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+  scenario = b.dataset.v; fillSamples(); $("#text").value = "";
+});
+$("#samples").onchange = e => { const s = samples.find(x => x.id === e.target.value); if (s) $("#text").value = s.text; };
+$("#size").onchange = () => { $("#ward").textContent = `Emergency department · ${SETTING[$("#size").value]}`; };
+$("#clear").onclick = () => { $("#text").value = ""; $("#samples").value = ""; resetRight(); $("#text").focus(); };
+
+/* stepper + key processes */
+function stepper(cur, stopAt){
+  $$("#stepper li").forEach(li => { const n = +li.dataset.s;
+    li.className = stopAt && n === stopAt ? "stop" : n < cur ? "done" : n === cur ? "now" : ""; });
+}
+function proc(key, state, text){
+  const li = document.querySelector(`#proc li[data-p="${key}"]`); li.className = state || "";
+  li.querySelector(".ic").innerHTML = state === "done" ? ICON.check : state === "stop" ? ICON.x : state === "run" ? ICON.dot : "";
+  if (text) li.querySelector(".d").textContent = text;
+}
+function resetRight(){
+  ["#checkCard","#decideCard","#noteCard","#doneCard","#more"].forEach(s => $(s).classList.add("hidden"));
+  $("#emptyCard").classList.remove("hidden"); stepper(1);
+}
+const MAP = {1:"a", 2:"a", 3:"b", 4:"b", 5:"c", 6:"c"};
+function onStep(ev){
+  if (ev.status !== "running"){ const li = document.createElement("li"); li.textContent = `${ev.title}: ${ev.detail}`; $("#steps").appendChild(li); }
+  const k = MAP[ev.n]; if (!k) return;
+  if (ev.status === "error"){ proc(k, "stop", ev.title); return; }
+  if (ev.status === "running"){ proc(k, "run", ev.n === 3 ? "Checking with BRANE…" : "Preparing the note…"); return; }
+  if (ev.n === 2) proc("a", "done", "Done on this computer, before any check.");
+  if (ev.n === 4){ proc("b", "done"); proc("c", "run", "Preparing the note…"); }
+}
+
+$("#go").onclick = async () => {
+  const text = $("#text").value;
+  if (!text.trim()){ $("#text").focus(); return; }
+  $("#go").disabled = true; $("#goLabel").textContent = "Checking…"; $("#go").insertAdjacentHTML("afterbegin", '<span class="spin" id="gospin"></span>');
+  $("#emptyCard").classList.add("hidden");
+  ["#decideCard","#noteCard","#doneCard","#more"].forEach(s => $(s).classList.add("hidden"));
+  $("#checkCard").classList.remove("hidden"); $("#banner").classList.add("hidden"); $("#shield").innerHTML = "";
+  ["a","b","c"].forEach(k => proc(k, "", "Waiting…")); proc("a", "run", "Hiding names and numbers…");
+  stepper(2); $("#steps").innerHTML = ""; outbound = null;
+  if (matchMedia("(max-width:980px)").matches) $("#stepper").scrollIntoView({behavior: "smooth", block: "start"});
+  try {
+    const res = await fetch("/api/analyse", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({text, scenario, size: $("#size").value, simulateDown: $("#down").checked})});
+    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = "";
+    while (true){
+      const {value, done} = await reader.read(); if (done) break;
+      buf += dec.decode(value, {stream:true});
+      let i; while ((i = buf.indexOf("\n")) >= 0){
+        const line = buf.slice(0, i); buf = buf.slice(i + 1); if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === "step"){ onStep(ev); if (ev.data && ev.data.outbound_preview) outbound = ev.data.outbound_preview; }
+        else show(ev);
+      }
+    }
+  } catch (e) {
+    ["a","b","c"].forEach(k => { if (document.querySelector(`#proc li[data-p="${k}"]`).className === "run") proc(k, "stop", "Connection lost"); });
+    banner("bad", ICON.stop, "Connection to the assistant was lost", "No result is used. Please try again or handle the case manually.");
+    $("#banner").classList.remove("hidden"); stepper(2, 2);
+  }
+  $("#go").disabled = false; $("#goLabel").textContent = "Check and prepare"; const sp = $("#gospin"); if (sp) sp.remove();
+};
+
+function banner(kind, icon, title, text){
+  $("#banner").className = "banner " + kind;
+  $("#banner").innerHTML = `${icon}<div><b>${esc(title)}</b><span>${esc(text)}</span></div>`;
+}
+function protections(r){
+  const L = new Set((r.spans || []).filter(s => s.action !== "allow").map(s => s.label)), out = [];
+  if (r.language && r.language !== "English") out.push(`Written in ${r.language} · note in English`);
+  if (L.has("PERSON")) out.push("Names hidden");
+  if (["EMAIL","PHONE","ADDRESS","IP_ADDRESS"].some(x => L.has(x))) out.push("Contact details hidden");
+  if (L.has("DATE_OF_BIRTH")) out.push("Birth date → age");
+  if (["PATIENT_ID","INSURANCE_NUMBER","ACCOUNT_NUMBER","SSN","PASSPORT","TAX_NUMBER"].some(x => L.has(x))) out.push("Patient numbers hidden");
+  if (["IBAN","CREDIT_CARD"].some(x => L.has(x))) out.push("Payment data removed");
+  if (L.has("RELIGIOUS_BELIEF") || L.has("ETHNIC_ORIGIN")) out.push("Religion / origin hidden");
+  if (L.has("TREATMENT_PREFERENCE")) out.push("Treatment preference kept");
+  if (L.has("INSTRUCTION")) out.push("Hidden instruction removed");
+  if (L.has("AUTONOMOUS_DECISION")) out.push("Automatic decision blocked");
+  if (L.has("CAPACITY_OR_CONSENT_DECISION")) out.push("Capacity left to a clinician");
+  if (L.has("EMOTION_OR_BIOMETRIC_INFERENCE")) out.push("Emotion judgement blocked");
+  if (L.has("PROTECTED_TRAIT_PRIORITY")) out.push("Priority by personal traits blocked");
+  return out;
+}
+
+function show(r){
+  last = r; chosen = null; initial = null; receipt = r.receipt || null;
+  const m = r.draft && (r.draft.match(/suggested level:\s*\**\s*([1-5])\b/i) || r.draft.match(/urgency level[\s\S]{0,40}?\blevel\s*([1-5])\b/i));
+  aiLevel = m ? +m[1] : null;
+  const hidden = receipt ? receipt.identifiers_replaced : 0;
+  proc("a", "done", hidden ? `${hidden} name${hidden === 1 ? "" : "s"} or number${hidden === 1 ? "" : "s"} replaced on this computer.` : "Checked on this computer before anything was sent.");
+  if (r.route === "local" || r.route === "cloud"){
+    proc("b", "done", r.route === "local" ? "Patient case: kept on the hospital's internal AI." : "No patient involved: the cloud model may answer.");
+    proc("c", "done", `Ready${receipt && receipt.ai_seconds ? " in " + Math.round(receipt.ai_seconds) + " s" : ""}. Suggestion only.`);
+  } else if (r.route === "refused"){
+    proc("b", "stop", "Stopped: this request needs a clinician."); proc("c", "stop", "No AI note made.");
+  } else { proc("b", "stop", "Safety check unavailable. Nothing was sent."); proc("c", "stop", "No AI note made."); }
+  const B = {
+    local:["ok", ICON.ok, "Processed by the hospital's internal AI", "The note never reached an external AI model. Only the BRANE safety check inspected it."],
+    cloud:["info", ICON.ok, "Checked and protected", "No patient was involved, so the cloud model prepared the answer."],
+    refused:["bad", ICON.stop, "A clinician must handle this case", "The note asks the AI to do something only a clinician may do (decide, judge capacity or rank by a personal trait)."],
+    blocked:["bad", ICON.stop, "Safety check unavailable", "Nothing was sent. Please handle this case manually."]
+  }[r.route] || ["bad", ICON.stop, "Stopped", r.headline];
+  banner(...B); $("#banner").classList.remove("hidden");
+  $("#shield").innerHTML = protections(r).map(p => `<span>${esc(p)}</span>`).join("");
+
+  if (r.draft){
+    $("#draft").innerHTML = "<p>" + md(r.draft.replace(/^\s*suggested level:.*$/im, "")) + "</p>";
+    $("#draft").contentEditable = false; delete $("#draft").dataset.edited; $("#editBtn").textContent = "Edit note";
+    $("#ai").innerHTML = aiLevel ? `AI suggests <span class="lvl v${aiLevel}">${aiLevel}</span> ${NAMES[aiLevel]}` : "";
+    $$("#cats .cat").forEach(c => c.setAttribute("aria-pressed", "false"));
+    phase = "blind"; tShown = Date.now();
+    $("#decideTitle").textContent = "Your assessment";
+    $("#decideHint").textContent = "Read the case and choose a category. The AI suggestion stays hidden until you lock your choice.";
+    $("#lock").disabled = true; $("#lockActs").classList.remove("hidden");
+    ["#compareBox","#finalActs","#reasonBox","#noteCard"].forEach(s => $(s).classList.add("hidden"));
+    $("#confirm").disabled = true; $("#comment").value = "";
+    $("#decideCard").classList.remove("hidden"); stepper(3);
+  } else {
+    $("#decideCard").classList.add("hidden"); $("#noteCard").classList.add("hidden");
+    stepper(r.route === "refused" ? 3 : 2, r.route === "refused" ? 3 : 2);
+  }
+  $("#doneCard").classList.add("hidden");
+
+  renderDoc();
+  $("#outbound").innerHTML = outbound ? esc(outbound).replace(/\[[^\]]{2,40}\]/g, t => `<span class="tok">${t}</span>`) : "Nothing was sent.";
+  $("#law").innerHTML = (r.advice || []).filter(a => a.action !== "allow")
+    .map(a => `<li><b>${esc(a.label.replace(/_/g, " ").toLowerCase())}</b>: ${esc(a.action)}. ${esc(a.reason)} <i>(${esc(a.legal)})</i></li>`).join("") || "<li>No protected information found.</li>";
+  $("#notes").textContent = (r.notes || []).filter(Boolean).join(" ");
+  const h = r.headers || {};
+  $("#hdr").innerHTML = Object.keys(h).length ? Object.entries(h).map(([k, v]) => `<code>${esc(k)}: ${esc(v)}</code>`).join("<br>") : "No AI was called for this case.";
+  $("#more").classList.remove("hidden");
+}
+function md(s){
+  return esc(s.replace(/^\s*>\s?/gm, "").replace(/\n{3,}/g, "\n\n")).replace(/^#{1,4} (.*)$/gm, "<h4>$1</h4>")
+    .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/^\s*[-*] (.*)$/gm, "• $1").replace(/\n{2,}/g, "</p><p>").replace(/\n/g, "<br>");
+}
+function renderDoc(){
+  if (!last) return;
+  const t = last.text, reveal = $("#reveal").checked, R = {quarantine:4, refuse:3, local:2, placeholder:1, remove:1};
+  const sp = (last.spans || []).filter(s => s.action !== "allow").sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start) || R[b.action] - R[a.action]);
+  let out = "", pos = 0;
+  for (const s of sp){ if (s.start < pos) continue; out += esc(t.slice(pos, s.start));
+    out += reveal ? `<span class="m reveal">${esc(t.slice(s.start, s.end))}</span>` : `<span class="m">${esc(s.label.replace(/_/g, " ").toLowerCase())}</span>`; pos = s.end; }
+  $("#doc").innerHTML = out + esc(t.slice(pos));
+}
+$("#reveal").onchange = renderDoc;
+
+/* nurse-first decision */
+function pick(c){
+  chosen = c;
+  $$("#cats .cat").forEach(x => x.setAttribute("aria-pressed", +x.dataset.c === c ? "true" : "false"));
+  if (phase === "blind"){ $("#lock").disabled = false; return; }
+  const differs = aiLevel && chosen !== aiLevel;
+  $("#reasonBox").classList.toggle("hidden", !differs);
+  if (differs) $("#diff").textContent = `Reason for choosing ${chosen} (${NAMES[chosen]}) instead of the AI's ${aiLevel}`;
+  $("#confirm").disabled = false;
+}
+$$("#cats .cat").forEach(b => b.onclick = () => pick(+b.dataset.c));
+document.addEventListener("keydown", e => {
+  if ($("#decideCard").classList.contains("hidden") || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (/^[1-5]$/.test(e.key)){ pick(+e.key); e.preventDefault(); }
+});
+$("#lock").onclick = () => {
+  initial = chosen; phase = "final";
+  $("#lockActs").classList.add("hidden");
+  $("#noteCard").classList.remove("hidden");
+  $("#cmpYou").innerHTML = `<span class="lvl v${initial}">${initial}</span> ${NAMES[initial]}`;
+  $("#cmpAi").innerHTML = aiLevel ? `<span class="lvl v${aiLevel}">${aiLevel}</span> ${NAMES[aiLevel]}` : `<span class="lvl v0">–</span> Not stated`;
+  const same = aiLevel === initial;
+  $("#agree").className = "agree" + (same ? "" : " no");
+  $("#agree").textContent = !aiLevel ? "The AI did not state a level. Use the note as support." :
+    same ? "You and the AI agree." : "You and the AI differ. Read the AI's reasons below, then decide.";
+  $("#compareBox").classList.remove("hidden");
+  $("#decideTitle").textContent = "Final decision";
+  $("#decideHint").textContent = "Keep your choice or change it after reading the AI note.";
+  $("#finalActs").classList.remove("hidden");
+  stepper(4); pick(initial);
+};
+$("#draft").addEventListener("input", () => { $("#draft").dataset.edited = "1"; });
+$("#editBtn").onclick = () => { const d = $("#draft"), on = d.contentEditable !== "true"; d.contentEditable = on; $("#editBtn").textContent = on ? "Done editing" : "Edit note"; if (on) d.focus(); };
+async function decide(decision){
+  if (decision === "approved" && aiLevel && chosen !== aiLevel && !$("#comment").value.trim()){ $("#comment").focus(); return; }
+  const edited = $("#editBtn").textContent === "Done editing" || $("#draft").dataset.edited === "1";
+  const res = await fetch("/api/decision", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({case_id: last.case_id, decision, edited, comment: $("#comment").value, final_category: chosen,
+      ai_suggested: aiLevel, initial_category: initial, review_seconds: (Date.now() - tShown) / 1000})});
+  const resp = await res.json().catch(() => ({})); showStats(resp.stats);
+  $("#draft").contentEditable = false;
+  $("#decideCard").classList.add("hidden");
+  const ok = decision === "approved";
+  $("#decided").className = "saved" + (ok ? "" : " rej");
+  $("#decided").innerHTML = ok
+    ? `<span class="lvl v${chosen}">${chosen}</span> Decision saved: ${NAMES[chosen]}${aiLevel && chosen !== aiLevel ? " (you changed the AI suggestion)" : ""}`
+    : "AI note rejected. Please assess the patient without it.";
+  $("#doneCard").classList.remove("hidden");
+  $$("#stepper li").forEach(li => li.className = "done");
+  if (receipt){
+    receipt = Object.assign({}, receipt, {
+      decided_by: "nurse on duty", decided_at: new Date().toISOString(), human_decision: decision,
+      nurse_first_assessment: initial, ai_suggested_level: aiLevel, final_category: ok ? chosen : null,
+      changed_after_seeing_ai: ok && initial !== chosen, review_seconds: Math.round((Date.now() - tShown) / 1000)
+    });
+    const rows = [
+      ["Case", receipt.case_id], ["Language", receipt.language],
+      ["Processed on", receipt.route === "local" ? "Internal AI (no external model)" : receipt.route === "cloud" ? "Cloud model (no identifiers)" : receipt.route],
+      ["Names and numbers replaced", receipt.identifiers_replaced],
+      ["Identifiers in the text sent", receipt.identifiers_in_text_sent],
+      ["Values removed (not needed)", receipt.values_removed],
+      ["Hidden instructions removed", receipt.hidden_instructions_quarantined],
+      ["Protection rules applied", receipt.protection_rules_applied],
+      ["Nurse first / AI / final", `${initial ?? "-"} / ${aiLevel ?? "-"} / ${receipt.final_category ?? "rejected"}`],
+      ["Decided by", "Nurse, " + new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})]
+    ];
+    $("#receipt").innerHTML = rows.map(([k, v]) => `<li><span>${esc(k)}</span><b>${esc(v)}</b></li>`).join("");
+    $("#receiptBox").classList.remove("hidden");
+  } else { $("#receiptBox").classList.add("hidden"); }
+}
+$("#confirm").onclick = () => decide("approved");
+$("#reject").onclick = () => decide("rejected");
+$("#dl").onclick = () => {
+  if (!receipt) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(receipt, null, 2)], {type: "application/json"}));
+  a.download = `privacy-receipt-${receipt.case_id}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,96 @@
+{
+  "_comment": "LarpAI hospital triage policy for BRANE (PUT /api/v1/policy). Mirrors LEGAL_FLOOR in legal.py. Citations to be verified against official texts.",
+  "routingMode": "cloud-preferred",
+  "piiSensitivity": "high",
+  "categories": {
+    "PERSON": "placeholder",
+    "EMAIL": "placeholder",
+    "PHONE": "placeholder",
+    "ADDRESS": "placeholder",
+    "IP_ADDRESS": "placeholder",
+    "ORG": "allow",
+    "TRADE_REGISTER": "allow",
+    "VAT_ID": "allow",
+    "DATE_OF_BIRTH": "placeholder",
+    "SSN": "placeholder",
+    "PASSPORT": "placeholder",
+    "TAX_NUMBER": "placeholder",
+    "INSURANCE_NUMBER": "placeholder",
+    "IBAN": "placeholder",
+    "CREDIT_CARD": "refuse",
+    "ACCOUNT_NUMBER": "placeholder",
+    "PASSWORD": "refuse",
+    "SECRET_KEY": "refuse",
+    "HEALTH_DATA": "local",
+    "ETHNIC_ORIGIN": "local",
+    "POLITICAL_OPINION": "local",
+    "RELIGIOUS_BELIEF": "local",
+    "SEXUAL_ORIENTATION": "local",
+    "TRADE_UNION": "local",
+    "SENSITIVE_CONTEXT": "local"
+  },
+  "semanticCategories": [
+    {
+      "code": "PATIENT_CLINICAL_CONTEXT",
+      "name": "Clinical information about a specific patient",
+      "description": "Symptoms, vital signs, injuries, medication, diagnoses, pregnancy, mental health or medical history that relate to a specific patient or person, including someone describing their OWN current symptoms in the first person ('I have had chest pain for an hour'), even without a name, ID or diagnosis code. General medical questions that are not about a particular person do not match.",
+      "keywords": [
+        "HIV positive",
+        "I feel dizzy",
+        "I have had",
+        "I've had",
+        "blood pressure",
+        "blood thinners",
+        "diagnosed",
+        "medication",
+        "my left arm",
+        "sick leave",
+        "vital signs"
+      ],
+      "legalBasis": "GDPR Art. 4(15), 9(1), 9(2)(h)",
+      "action": "local"
+    },
+    {
+      "code": "AUTONOMOUS_CLINICAL_DECISION",
+      "name": "Request for an autonomous clinical decision",
+      "description": "A request, written inside the case text, that tells the system to act on its own: send a patient home, discharge them, hand out medication, or cancel care without any nurse or doctor checking. Instructions that ask for a suggestion for a nurse to review do not match.",
+      "keywords": [
+        "send the patient home",
+        "send him home",
+        "send her home",
+        "discharge automatically",
+        "no need for a nurse",
+        "no need for a doctor",
+        "without a nurse checking"
+      ],
+      "legalBasis": "GDPR Art. 22 + EU AI Act Art. 14, Annex III 5(d)",
+      "action": "refuse"
+    },
+    {
+      "code": "CONTEXT_IDENTIFIABLE_PATIENT",
+      "name": "Patient identifiable from context",
+      "description": "A patient who can be identified without a name through a public role, unique circumstance or small group, e.g. the mayor, a famous athlete, the only person who, a named public event.",
+      "keywords": [
+        "the mayor",
+        "council meeting",
+        "famous",
+        "the only person"
+      ],
+      "legalBasis": "GDPR Art. 4(1), Recital 26; EDPB Guidelines 01/2025",
+      "action": "local"
+    },
+    {
+      "code": "CUSTODY_OR_CRIMINAL_CONTEXT",
+      "name": "Police custody or criminal context",
+      "description": "Information that a patient is in police custody, arrested, detained, imprisoned or suspected or convicted of an offence.",
+      "keywords": [
+        "police custody",
+        "arrested",
+        "detainee",
+        "prison"
+      ],
+      "legalBasis": "GDPR Art. 10",
+      "action": "local"
+    }
+  ]
+}
