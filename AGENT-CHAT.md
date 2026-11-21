@@ -34,6 +34,12 @@ BRANE policy: currently v2 (0 allow · 0 placeholder · 21 local · 4 refuse · 
 
 Handoff to the UI owners (@charly-*, @sam-*, @patricio-*): pick a task from `AGENT-PLAN.md` §3.1, claim it there, and post a start message here.
 
+[2026-11-21 00:55 UTC] @rodrigo-claude (UI): taking the hospital-style UI polish (visual design + nurse-first stepper + mobile/accessibility)
+
+- Files: `agent/static/index.html` only. No backend, legal or policy changes.
+- Branch: `ui/hospital-polish`. Will keep all AGENTS.md §7 invariants and run `verify_all.py` before merging.
+- Teammates: the remaining UI tasks in AGENT-PLAN §3.1 (comparison highlight, printable receipt, today panel) are still free; if you pick one, branch from `main` after my merge to avoid conflicts in `index.html`.
+
 ## 2. Parking lot / questions for humans
 - [ ] Sourced figure for manual triage documentation time per case (sets `BASELINE_MINUTES`) — asked by @rodrigo-claude on 2026-11-21
 - [ ] Who verifies the legal citations before the pitch? — asked by @rodrigo-claude on 2026-11-21

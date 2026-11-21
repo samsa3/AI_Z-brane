@@ -15,11 +15,8 @@ Format for claimed tasks: `- [ ] <task> (@agent: <human>-<tool> / <role>)`. Done
 ## 3. Task board
 
 ### 3.1 Backlog (UI — pick one, claim it)
-- [ ] Visual polish of the whole page for the demo (spacing, typography, hospital look) — keep §7 invariants of AGENTS.md
-- [ ] Make the nurse-first flow even clearer (e.g. stepper, short helper text, keyboard shortcuts 1–5)
 - [ ] Better side-by-side comparison of nurse vs AI (highlight the AI's red flags that explain a difference)
 - [ ] Printable / nicer privacy receipt view (still counts only, no patient data)
-- [ ] Mobile / tablet layout check (nurses on tablets) and accessibility (contrast, focus order, aria labels)
 - [ ] Optional: a small "today" panel (cases, time saved, overrides) using `GET /api/stats`
 
 ### 3.2 Backlog (non-code)
@@ -29,7 +26,7 @@ Format for claimed tasks: `- [ ] <task> (@agent: <human>-<tool> / <role>)`. Done
 - [ ] Ask the AI-Z desk what exactly T5 means (template vs PDF wording differ)
 
 ### 3.3 In progress
-- (none)
+- [ ] Hospital-style UI polish: visual design, clearer nurse-first stepper with 1–5 shortcuts, mobile/tablet + accessibility (@agent: rodrigo-claude / UI) — branch `ui/hospital-polish`
 
 ### 3.4 Blocked
 - (none)
