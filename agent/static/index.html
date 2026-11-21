@@ -194,14 +194,14 @@ code{font-family:var(--mono);font-size:12px}
 <main>
   <section class="card left" aria-labelledby="caseTitle">
     <h2 id="caseTitle">New case</h2>
-    <p class="sub">Use fictional data only.</p>
+    <p class="sub">Personal details are protected automatically.</p>
     <div class="seg" id="scen" role="group" aria-label="Type of case">
       <button data-v="er" aria-pressed="true">Emergency intake</button>
       <button data-v="portal" aria-pressed="false">Patient message</button>
       <button data-v="protocol" aria-pressed="false">Protocol question</button>
     </div>
-    <label class="label" for="samples">Load an example</label>
-    <select id="samples"><option value="">Choose a fictional example…</option></select>
+    <label class="label" for="samples" id="samplesLabel">Waiting in the emergency department</label>
+    <select id="samples"><option value="">Select a case…</option></select>
     <label class="label" for="text">Patient note</label>
     <textarea id="text" placeholder="Paste or type the intake note or the patient's message."></textarea>
     <button class="primary" id="go"><span id="goLabel">Check and prepare</span></button>
@@ -210,7 +210,7 @@ code{font-family:var(--mono);font-size:12px}
       <summary>Options</summary>
       <div class="o"><label for="size">Setting</label>
         <select id="size"><option value="clinic">Clinic / GP practice</option><option value="regional" selected>Regional hospital</option><option value="university">University hospital</option></select></div>
-      <label class="o"><input type="checkbox" id="down"> Demo: safety check unavailable</label>
+      <label class="o"><input type="checkbox" id="down"> Outage drill: run with the safety check offline</label>
     </details>
   </section>
 
@@ -226,7 +226,7 @@ code{font-family:var(--mono);font-size:12px}
 
     <section class="card" id="emptyCard">
       <h2 style="font-size:18px">Ready for the next patient</h2>
-      <p class="sub" style="margin:0">Paste a note or load an example on the left, then press <b>Check and prepare</b>.</p>
+      <p class="sub" style="margin:0">Select a waiting case or paste a note on the left, then press <b>Check and prepare</b>.</p>
       <ul class="trust">
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Names, contact details and patient numbers are hidden before any check.</li>
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg>Patient cases are prepared by the hospital's internal AI only.</li>
@@ -294,7 +294,7 @@ code{font-family:var(--mono);font-size:12px}
       <div class="box" id="doc"></div>
       <div class="cap">Text sent to the safety check (BRANE)</div>
       <div class="box" id="outbound"></div>
-      <p class="hint">Demo set-up: the BRANE safety check is hosted by AI-Z and inspects the original note. In a hospital, BRANE runs on the hospital's own servers.</p>
+      <p class="hint">Deployment: the BRANE safety check is currently hosted by AI-Z and inspects the original note. It can also run on the hospital's own servers.</p>
       <div class="cap">Rules applied</div>
       <ul class="rules" id="law"></ul>
       <p class="hint" id="notes"></p>
@@ -335,9 +335,20 @@ fetch("/api/stats").then(r => r.json()).then(showStats).catch(() => {});
 
 /* case input */
 fetch("/api/samples").then(r => r.json()).then(s => { samples = s; fillSamples(); });
+/* Work-queue titles shown to the nurse (presenting complaint, no names). The team's test label stays in the tooltip. */
+const QUEUE = {
+  t2:"Chest pressure radiating to the arm", t3:"Fall from a ladder · wrist pain, head wound", t5:"Car accident · heavy bleeding from the leg",
+  e1:"Sprained ankle · walking with pain", e2:"Collapse during a meeting · confusion, headache", e4:"Forehead cut · arrived from police custody",
+  x1:"Abdominal pain · vomiting", x3:"Abdominal pain and fever", x4:"Fall at home · new confusion", ml2:"Chest pain, low blood pressure (German)",
+  t3c:"Appointment change request", t4:"Cough and fever for five days", e3:"Appointment change · orthopaedics", ml1:"Fever and chest pain when breathing (Dutch)",
+  t1:"Red flags for chest pain on the phone", x2:"Chest pain and numb left arm"
+};
+const QUEUE_LABEL = {er:"Waiting in the emergency department", portal:"Patient inbox", protocol:"Saved questions"};
 function fillSamples(){
-  $("#samples").innerHTML = '<option value="">Choose a fictional example…</option>' +
-    samples.filter(x => x.scenario === scenario).map(x => `<option value="${esc(x.id)}">${esc(x.label.replace(/^[A-Z]+\d*[a-z]? · /, ""))}</option>`).join("");
+  $("#samplesLabel").textContent = QUEUE_LABEL[scenario];
+  const list = samples.filter(x => x.scenario === scenario);
+  $("#samples").innerHTML = `<option value="">Select a case (${list.length} open)…</option>` +
+    list.map(x => `<option value="${esc(x.id)}" title="${esc(x.label)}">${esc(QUEUE[x.id] || x.label.replace(/^[A-Z]+\d*[a-z]? · /, ""))}</option>`).join("");
 }
 $$("#scen button").forEach(b => b.onclick = () => {
   $$("#scen button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
@@ -539,7 +550,7 @@ async function decide(decision){
   $$("#stepper li").forEach(li => li.className = "done");
   if (receipt){
     receipt = Object.assign({}, receipt, {
-      decided_by: "nurse (demo reviewer)", decided_at: new Date().toISOString(), human_decision: decision,
+      decided_by: "nurse on duty", decided_at: new Date().toISOString(), human_decision: decision,
       nurse_first_assessment: initial, ai_suggested_level: aiLevel, final_category: ok ? chosen : null,
       changed_after_seeing_ai: ok && initial !== chosen, review_seconds: Math.round((Date.now() - tShown) / 1000)
     });
