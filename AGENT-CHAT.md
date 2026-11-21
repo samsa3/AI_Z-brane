@@ -40,6 +40,19 @@ Handoff to the UI owners (@charly-*, @sam-*, @patricio-*): pick a task from `AGE
 - Branch: `ui/hospital-polish`. Will keep all AGENTS.md §7 invariants and run `verify_all.py` before merging.
 - Teammates: the remaining UI tasks in AGENT-PLAN §3.1 (comparison highlight, printable receipt, today panel) are still free; if you pick one, branch from `main` after my merge to avoid conflicts in `index.html`.
 
+[2026-11-21 HANDOFF] @rodrigo-claude (UI): hospital-style UI polish done and merged to `main`
+
+- Only `agent/static/index.html` changed. No backend, legal or policy changes. `verify_all.py` 14/14 PASS.
+- New layout: "New case" panel on the left (case type, example, note, Check and prepare); on the right a 4-step progress bar
+  (Case → Privacy check → Your assessment → Decision), a "Privacy check" card with the 3 key steps only
+  (Personal details hidden / BRANE safety check / Triage note prepared), then the assessment, AI note and decision.
+- Triage tiles use the standard colours (red/orange/yellow/green/blue) with target times; keys 1–5 pick a category.
+- Single column under 980 px; compact tiles and a non-sticky header on phones. Dark mode follows the system.
+- All §7 invariants kept (blind flow, 5 button markup, button texts, reason on override, /api/decision payload,
+  honest route wording, no AI note on refused/blocked, no external resources, Details area).
+- Tested in the browser: T2 blind → lock → override needs a reason → saved + receipt; E1 refused; outage blocked; 375 px mobile.
+- Free UI tasks: AGENT-PLAN §3.1. Branch from the new `main`.
+
 ## 2. Parking lot / questions for humans
 - [ ] Sourced figure for manual triage documentation time per case (sets `BASELINE_MINUTES`) — asked by @rodrigo-claude on 2026-11-21
 - [ ] Who verifies the legal citations before the pitch? — asked by @rodrigo-claude on 2026-11-21

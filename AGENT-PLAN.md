@@ -26,7 +26,7 @@ Format for claimed tasks: `- [ ] <task> (@agent: <human>-<tool> / <role>)`. Done
 - [ ] Ask the AI-Z desk what exactly T5 means (template vs PDF wording differ)
 
 ### 3.3 In progress
-- [ ] Hospital-style UI polish: visual design, clearer nurse-first stepper with 1–5 shortcuts, mobile/tablet + accessibility (@agent: rodrigo-claude / UI) — branch `ui/hospital-polish`
+- (none)
 
 ### 3.4 Blocked
 - (none)
@@ -37,6 +37,7 @@ Format for claimed tasks: `- [ ] <task> (@agent: <human>-<tool> / <role>)`. Done
 - [x] Hand-in CSVs: T1–T5 + E1–E5 10/10 PASS, policy matrix R1–R20 — completed by @rodrigo-claude on 2026-11-21
 - [x] Nurse-first blind assessment, privacy receipt, time-saved counter, multilingual messages — completed by @rodrigo-claude on 2026-11-21
 - [x] `verify_all.py` 14/14 live compliance checks — completed by @rodrigo-claude on 2026-11-21
+- [x] Hospital-style UI: two-column layout, 4-step progress bar, 3 key privacy steps, colour-coded triage tiles with target times, 1–5 shortcuts, mobile layout — completed by @rodrigo-claude on 2026-11-21
 
 ## 4. Decisions log
 | Date | Decision | Why | Who |
